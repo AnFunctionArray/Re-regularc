@@ -1,0 +1,5 @@
+(?<unary>(?<prefixarith>\s*([+][+]|--))(?&unaryexpr)(?C10)
+	|(?&unaryop)(?&castexpr)|sizeof((?&typename)|(?&unaryexpr)))
+
+
+						(?<unaryop>\s*([\&\*\+\-\~\!])(?C19))
