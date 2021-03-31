@@ -1,15 +1,15 @@
 int printf(const char* fmt, ...);
 
 int main() {
-    int a, b, c, d;
+    int a, b, d;
 
-    a = b = c = d = 7;
+    float c;
 
-    c = 4;
+    a = b = d = 7;
 
-    d = 0 + a ... d;
+    c = 4.4;
 
-	printf("%d\n", d);
+	printf("%f\n", (double)0 + a ... c);
 
 	return 0;
 }

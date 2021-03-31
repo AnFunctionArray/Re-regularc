@@ -2403,18 +2403,17 @@ extern "C" void binary(const char* str, size_t szstr) {
 
 	//phndl->usualarithmeticconversions(ops);
 
-	if (bIsBasicFloat(ops[0].type.front()) || bIsBasicFloat(ops[1].type.front()))
-		phndl = &hndlfpexpr;
-
-	std::list<val>::iterator initialelem, currelem = --phndl->immidiates.end();
-
-	initialelem = currelem;
+	std::list<val>::iterator initialelem = --phndl->immidiates.end();
 
 	if(ops[0].initialelem)
 		initialelem = ops[0].initialelem.value();
 
 	if(ops[1].initialelem)
 		initialelem = ops[1].initialelem.value();
+
+	for(auto currelem = initialelem; currelem != immidiates.end(); ++currelem)
+		if(bIsBasicFloat(currelem->type.front()))
+			if(phndl = &hndlfpexpr; true) break;
 
 	----initialelem;
 
