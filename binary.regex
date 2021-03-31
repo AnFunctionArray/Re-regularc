@@ -23,7 +23,10 @@
 (?<shiftplusrest>(?<shiftop>(?<shiftopraw><<|>>)(?&orlogiorsomething)(?!(?&addmulplusrestfacet))
     (?C22))|(?&addmulplusrest)(?&shiftop)?)
 
-(?<addmulplusrest>(?<addop>(?<addopraw>[\+\-])((?&orlogiorsomething)(?!(?&mulopfacet))
-    (?C20)))|(?&mulop)(?&addop)?)
+(?<addmulplusrest>(?<addop>(?<addopraw>[\+\-])(?&orlogiorsomething)(?!(?&muloprestfacet))
+    (?C20))|(?&muloprest)(?&addop)?)
 
-(?<mulop>(?<mulopraw>[\*\/\%])(?&orlogiorsomething)(?C21))
+(?<muloprest>(?<mulop>(?<mulopraw>[\*\/\%])(?&orlogiorsomething)(?!(?&rangeopfacet))
+    (?C21))|(?&rangeop)(?&mulop)?)
+
+(?<rangeop>(?<rangeopraw>\.\.\.)(?&orlogiorsomething)(?C82))

@@ -1,3 +1,4 @@
+#include "range/v3/view/single.hpp"
 #include "llvm/IR/Instructions.h"
 #include <array>
 #include <bitset>
@@ -246,9 +247,14 @@ struct valandtype {
 	std::vector<::type> type;
 };
 
+struct lvalue : valandtype {
+	std::optional<std::list<struct var>::const_iterator> iterorigvar{};
+};
+
 struct val : valandtype {
-	std::list<valandtype> lvalues = {};
-	std::string originident = "[[immidiate]]";
+	std::list<lvalue> lvalues = {};
+	std::optional<std::list<val>::iterator> initialelem;
+	//std::string originident = "[[immidiate]]";
 };
 
 struct var {
@@ -258,7 +264,7 @@ struct var {
 	llvm::Type* pllvmtype;
 	llvm::Value* pValue;
 
-	operator val() { return { pValue, type, {}, identifier }; }
+	//operator val() { return { pValue, type, {}, identifier }; }
 };
 
 static std::list<var>::iterator currfunc;
@@ -302,7 +308,7 @@ val convertTo(val target, std::vector<::type> to);
 	return value;
 }*/
 
-static std::list<val> immidiates;
+static std::list<val> immidiates{1};
 
 bool bIsBasicInteger(const type& type);
 
@@ -799,9 +805,9 @@ struct basehndl {
 
 		ops[1] = convertTo(ops[1], ops[0].lvalues.back().type);
 
-		printtype(ops[0].lvalues.back().value->getType(),
-			ops[0].originident);
-		printtype(ops[1].value->getType(), ops[1].originident);
+		//printtype(ops[0].lvalues.back().value->getType(),
+			//ops[0].originident);
+		//printtype(ops[1].value->getType(), ops[1].originident);
 
 		llvmbuilder.CreateStore(ops[1].value, ops[0].lvalues.back().value);
 
@@ -832,13 +838,13 @@ struct basehndl {
 						&& ops[i].type.front().uniontype != type::ARRAY
 							 ? llvmbuilder.CreateLoad(lvalue)
 							 : lvalue,
-						 ops[i].type, ops[i].lvalues, ops[i].originident });
+						 ops[i].type, ops[i].lvalues });
 					immidiates.back().lvalues.push_back(
 						{ lvalue, ops[i].type });
-					printtype(lvalue->getType(), ops[i].originident);
-					printtype(immidiates.back().value->getType(),
-						ops[i].originident);
-					printtype(ops[!i].value->getType(), ops[!i].originident);
+					//printtype(lvalue->getType(), ops[i].originident);
+					//printtype(immidiates.back().value->getType(),
+						//ops[i].originident);
+					//printtype(ops[!i].value->getType(), ops[!i].originident);
 					return true;
 				}
 		return false;
@@ -1228,7 +1234,7 @@ void printvaltype(val val) {
 	llvm::raw_string_ostream rso(type_str);
 	val.value->getType()->print(rso);
 	std::string name = val.value->getName().str();
-	name = name.size() ? name : val.originident;
+	name = name.size() ? name : !val.lvalues.empty() && val.lvalues.back().iterorigvar ? val.lvalues.back().iterorigvar.value()->identifier : "[[immediate]]";
 	std::cout << name << " is " << rso.str() << std::endl;
 }
 
@@ -1237,7 +1243,7 @@ extern valandtype getrvalue(valandtype lvalue);
 extern "C" void obtainvalbyidentifier(const char* identifier, size_t szstr) {
 	std::string ident{ identifier, szstr };
 
-	const ::var* var = nullptr;
+	std::optional<std::list<::var>::const_iterator> var{};
 
 	std::find_if(scopevar.rbegin(), scopevar.rend(),
 		[&](const std::list<::var>& scope) {
@@ -1248,7 +1254,7 @@ extern "C" void obtainvalbyidentifier(const char* identifier, size_t szstr) {
 					});
 
 			if (iter != scope.rend())
-				return var = &*iter, true;
+				return var = --iter.base(), true;
 			return false;
 		});
 
@@ -1267,17 +1273,17 @@ extern "C" void obtainvalbyidentifier(const char* identifier, size_t szstr) {
 		currfunctype.begin(), currfunctype.end(),
 		[&](const ::var& param) { return param.identifier == ident; });
 		findparam != currfunctype.end())
-		var = &*findparam;
+		var = findparam;
 
 	llvm::Value* pglobal;
 
-	immidiate.type = var->type;
+	immidiate.type = (*var)->type;
 
-	pglobal = immidiate.value = var->pValue;
+	pglobal = immidiate.value = (*var)->pValue;
 
-	immidiate.originident = var->identifier;
+	//immidiate.originident = var->identifier;
 
-	immidiate.lvalues.push_back(immidiate);
+	immidiate.lvalues.push_back({immidiate.value, immidiate.type, var});
 
 	printvaltype(immidiate);
 
@@ -1316,9 +1322,11 @@ extern "C" void constructstring() {
 		currstring, "", 0, &nonconstructable.mainmodule);
 
 	hndlbase.immidiates.push_back(
-		{ llvmbuilder.CreateLoad(lvalue), stirngtype, {}, "[[stringliteral]]" });
-	hndlbase.immidiates.back().lvalues.push_back(hndlbase.immidiates.back());
-	hndlbase.immidiates.back().lvalues.back().value = lvalue;
+		{ llvmbuilder.CreateLoad(lvalue), stirngtype, {} });
+
+	auto lval = hndlbase.immidiates.back();
+	hndlbase.immidiates.back().lvalues.push_back({lvalue, lval.type});
+	//hndlbase.immidiates.back().lvalues.back().value = lvalue;
 	currstring = "";
 }
 
@@ -1564,8 +1572,7 @@ void pushsizeoftype(std::vector<type> type) {
 						 llvm::IntegerType::get(llvmctx, 64),
 						 llvm::APInt{64, szoftype}),
 					 {sztype},
-					 {},
-					 "[[sizeoftypename]]" }));
+					 {}}));
 }
 
 extern const std::list<::var>* getstructorunion(std::string ident);
@@ -1604,20 +1611,20 @@ extern "C" void memberaccess(const char* arrowordot, size_t szstr,
 	// lvalue = llvmbuilder.CreatePointerCast(lvalue,
 	// member.pllvmtype->getPointerTo());
 
-	printtype(lvalue->getType(),
-		lastvar.originident + " " + std::to_string(imember));
+	//printtype(lvalue->getType(),
+		//lastvar.originident + " " + std::to_string(imember));
 
 	llvm::Value* rvalue = llvmbuilder.CreateLoad(lvalue);
 
 	lastvar.type = member.type;
 
-	lastvar.originident = member.identifier;
+	//lastvar.originident = member.identifier;
 
 	lastvar.value = rvalue;
 
 	printvaltype(lastvar);
 
-	lastvar.lvalues.push_back({ lvalue, lastvar.type });
+	lastvar.lvalues.push_back({ lvalue, lastvar.type, listiter });
 
 	return;
 }
@@ -1681,8 +1688,8 @@ extern "C" void endifstatement() {
 
 extern "C" void endsizeofexpr() {
 	auto lastimmtype = phndl->immidiates.back().type;
-	printtype(createllvmtype(lastimmtype),
-		phndl->immidiates.back().originident);
+	//printtype(createllvmtype(lastimmtype),
+		//phndl->immidiates.back().originident);
 	phndl->immidiates.pop_back();
 	pushsizeoftype(lastimmtype);
 }
@@ -2348,7 +2355,7 @@ extern "C" void unaryincdec(const char* str, size_t szstr, bool postfix) {
 
 	auto immlvalue = immidiates.back();
 
-	immlvalue.originident.append("[[modified]]");
+	//immlvalue.originident.append("[[modified]]");
 
 	insertinttoimm("1", sizeof "1" - 1, "", 0, type);
 
@@ -2370,6 +2377,21 @@ extern "C" void unaryincdec(const char* str, size_t szstr, bool postfix) {
 	phndl = phpriorhndl;
 }
 
+void expandrange() {
+	auto ops = std::array{ *----phndl->immidiates.end(), phndl->immidiates.back() };
+
+	immidiates.erase(----phndl->immidiates.end());
+
+	auto end = ops[1].lvalues.back().iterorigvar.value();
+
+	std::optional<std::list<val>::iterator> initialelem = --immidiates.end();
+
+	for(auto begin = ops[0].lvalues.back().iterorigvar.value(); begin != end; ++begin)
+		immidiates.push_back(val{llvmbuilder.CreateLoad(begin->pValue), begin->type, {{begin->pValue, begin->type, begin}}});
+
+	immidiates.back().initialelem = initialelem;
+}
+
 extern "C" void binary(const char* str, size_t szstr) {
 	std::string imm;
 
@@ -2383,6 +2405,18 @@ extern "C" void binary(const char* str, size_t szstr) {
 
 	if (bIsBasicFloat(ops[0].type.front()) || bIsBasicFloat(ops[1].type.front()))
 		phndl = &hndlfpexpr;
+
+	std::list<val>::iterator initialelem, currelem = --phndl->immidiates.end();
+
+	initialelem = currelem;
+
+	if(ops[0].initialelem)
+		initialelem = ops[0].initialelem.value();
+
+	if(ops[1].initialelem)
+		initialelem = ops[1].initialelem.value();
+
+	----initialelem;
 
 	/*switch (stringhash(imm.c_str())) {
 	case "*"_h:
@@ -2436,6 +2470,8 @@ extern "C" void binary(const char* str, size_t szstr) {
 		break;
 	}*/
 
+	do
+	if(std::cout << std::distance(initialelem, ----immidiates.end()) << std::endl, true)
 	switch (stringhash(imm.c_str())) {
 	case "*"_h:
 		phndl->mlutiplylasttwovalues();
@@ -2494,8 +2530,13 @@ extern "C" void binary(const char* str, size_t szstr) {
 	case "="_h:
 		phndl->assigntwovalues();
 		break;
+	case "..."_h:
+		expandrange();
+		goto end;
 	}
+	while(initialelem != ----immidiates.end());
 
+end:
 	phndl = phpriorhndl;
 }
 

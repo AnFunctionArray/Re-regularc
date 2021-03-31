@@ -563,6 +563,10 @@ rest:
 			n = 0;
 		else --n;
 		break;
+	case 82:
+		BINARY_OP("rangeop");
+		binary(GROUP_PTR_AND_SZ(n + 1));
+		break;
 #else
 	case 12:
 		n = getnameloc(namedcapture = "abstrsubs", *ptable); //cond = 0; break;
