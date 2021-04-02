@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <iostream>
 #include <utility>
+#define USE_STANDARD_FILE_FUNCTIONS
+#include <typeinf.hpp>
 
 static std::string gluedregex, facetor;
 
@@ -72,6 +74,9 @@ extern "C" int istypedefinvecotr(const char* identifier, size_t szcontent)
 
 	for (const auto& a : typedefs)
 		if (!(res = res && std::find(a.begin(), a.end(), contentstr) == a.end())) break;
+
+	if (res)
+		return !get_named_type(get_idati(), contentstr.c_str(), NTF_TYPE);
 
 	return res;
 }

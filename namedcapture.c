@@ -559,9 +559,21 @@ rest:
 		break;
 	case 81:
 		n = (getnameloc2(namedcapture = "cc", *ptable, a, 1)) + 1;
+		
 		if (a->offset_vector[2 * n] == -1)
 			n = 0;
-		else --n;
+		//else --n;
+
+		if (n == 0) {
+
+			n = (getnameloc2(namedcapture = "ccptr", *ptable, a, 1)) + 1;
+
+			if (a->offset_vector[2 * n] == -1)
+				n = 0;
+		}
+		//else --n;
+		printf("%.*s\n", GROUP_SZ_AND_PTR(n));
+		a->offset_vector[2 * n] = a->offset_vector[2 * n + 1] = -1;
 		break;
 #else
 	case 12:

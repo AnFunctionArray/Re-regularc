@@ -50,7 +50,7 @@ char* glueregexfile(char* filename);
 
 extern FILE* foutput;
 
-#if !!(PATTERN_FLAGS & PCRE2_AUTO_CALLOUT) & !defined(DEBUG)
+#if (!!(PATTERN_FLAGS & PCRE2_AUTO_CALLOUT) & !defined(DEBUG)) //| 1
 #define printf(format, ...) (fprintf(foutput, format, __VA_ARGS__))//, printf(format, __VA_ARGS__))
 #else
 #define printf(format, ...) (fprintf(foutput, format, ##__VA_ARGS__), printf(format, ##__VA_ARGS__))

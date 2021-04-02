@@ -1,14 +1,14 @@
 (?<typename>\s*+[(](?<allqualifs>(?<typesandqualifiers>\s*+(?<typesandqualifiersmask>(\bvoid\b|\bint\b|\bchar\b|\bshort\b|\blong\b|\bsigned\b|\bunsigned\b|\bfloat\b|\bdouble\b|\b__int64\b)|
 						(?<qualifiers>\bconst\b|\brestrict\b|\bvolatile\b)
 						|(?<storageclass>\bextern\b|\bstatic\b|\bauto\b|\bregister\b))(?C49)\s*+)
-						|(?&typedefname)|(?&structorunion)|\s*+(?>(?<typedefkeyword>\btypedef\b))\s*+)++((?&callingconv))?+(?C55)
+						|(?&typedefname)|(?&structorunion)|\s*+(?>(?<typedefkeyword>\btypedef\b))\s*+)++(?C55)
 						(?&abstdecloptoutter)?+[)](?C46)\s*+)
 
-(?<Tabstrrest, Tabstrrestalt, Tinside>)(?<abstdecl>(?<abstrptrrev#restrictoutsidefacet>(?<abstrptr>\s*+[*]\s*+((?&qualifiers))*+)
-						(?!(?&abstrptrrev)(?C11))
+(?<Tabstrrest, Tabstrrestalt, Tinside>)(?<abstdecl>(?<cc>((?&callingconv))?+)((?<abstrptrrev#restrictoutsidefacet>(?<abstrptr>\s*+[*]\s*+((?&qualifiers))*+)
+						(?<cc>((?&callingconv))?+)(?!(?&abstrptrrev)(?C11))
 						(?<abstrrest>(?&Tinside)(?<abstrsubs>\s*+(\[(?C40)(?&primexpr)\](?C41)
 						|[(](?C47)((?&typenameinsideparams)(?C42))?+(,(?&typenameinsideparams)(?C42))*(?<rest>,\s*+\.\.\.\s*+)?+[)](?C48))\s*+)*+(?C11))|
-						(?&abstrptr))(?&abstrptr)*+(?&Tabstrrest)|(?&Tabstrrestalt))
+						(?&abstrptr))(?<ccptr>((?&callingconv))?+)(?&abstrptr)*+(?&Tabstrrest)|(?&Tabstrrestalt))(?C81))
 
 
 (?&abstdecl<abstrdecloptrest, abstrdecloptrestalt, abstrmostoutteropt?+>=abstdecloptoutter)
@@ -29,7 +29,7 @@
 
 (?<abstrdecloptrestparams>(?&abstrmostoutterparamsfacet)?+(?&abstrsubsfacet)*+)
 
-(?<Tabstrdeclinside>)(?<abstrcommonoutter>[(](?<cc>((?&callingconv))?+)(?&Tabstrdeclinside)(?C81)[)])
+(?<Tabstrdeclinside>)(?<abstrcommonoutter>[(](?&Tabstrdeclinside)[)])
 
 (?<abstrmostoutteropt>\s*+(?&abstrcommonoutter<abstdecloptoutter>)\s*+)
 
@@ -39,13 +39,11 @@
 
 (?<callingconv>\b(__cdecl|__stdcall|__thiscall|__fastcall)\b)
 
-(?<typenameinside>(\s*+(?>(?<typedefkeywordmine>\btypedef\b))\s*+|(?&allqualifs))++((?&callingconv))?+(?C55)(?&abstdecloptoutter))
+(?<typenameinsideopt>(\s*+(?>(?<typedefkeywordmine>\btypedef\b))\s*+|(?&allqualifs))*+(?C55)(?&abstdecloutter))
 
-(?<typenameinsideopt>(\s*+(?>(?<typedefkeywordmine>\btypedef\b))\s*+|(?&allqualifs))*+((?&callingconv))?+(?C55)(?&abstdecloutter))
+(?<typenameinsidedecl>(\s*+(?>(?<typedefkeyword>\btypedef\b))\s*+|(?&allqualifs))++(?C55)(?&abstdecloutter))
 
-(?<typenameinsidedecl>(\s*+(?>(?<typedefkeyword>\btypedef\b))\s*+|(?&allqualifs))++((?&callingconv))?+(?C55)(?&abstdecloutter))
-
-(?<typenameinsideparams>(\s*+(?>(?<typedefkeyword>\btypedef\b))\s*+|(?&allqualifs))++((?&callingconv))?+(?C55)(?&abstdecloutterparams))
+(?<typenameinsideparams>(\s*+(?>(?<typedefkeyword>\btypedef\b))\s*+|(?&allqualifs))++(?C55)(?&abstdecloutterparams))
 
 (?<typedefname>(?&identifierminetypedef))
 

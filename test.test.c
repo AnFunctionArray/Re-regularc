@@ -1,11 +1,9 @@
-int printf(const char* fmt, ...);
+int printf(const char(__cdecl* fmt[2]), ...);
 
 int main() {
-	int arr[2];
+	typedef int ty;
 
-	*(float*)&arr[1] = 77.7;
-
-	printf("%f\n", (double)1[*(float(((*)[2]))) & arr]);
+	ty a;
 
 	return 0;
 }

@@ -7,7 +7,11 @@
 						|(?&floating)
 						|(?<identifier>\s*+(?!(?&keywordlist))((?&identifierraw))(?C6)\s*+)))\s*+)
 
-(?<identifierraw>[_a-zA-Z][_a-zA-Z0-9]*+)
+(?<identifierrawraw>[_a-zA-Z][_a-zA-Z0-9]*+)
+
+(?<identifierraw>(?&identifierrawraw)((<.*?>)?+::(`.*?`|~?+(?&identifierrawraw)))?+|operator\s++(new|delete))
+
+
 
 (?<floating>((?&fractional)(?&exponent)?+|(?<wholenodot>\d++)(?&exponent))(?<flt>[flFL])?+(?C68)(?C69))
 (?<fractional>((?<wholeopt>\d*+)\.(?<fraction>\d++)|(?<whole>\d++)\.)(?C68))
