@@ -1,27 +1,25 @@
-(?<inner>\s*+(((?<stringlit>(?(?=("|'))(?{push2 \@matches, {"begincharliteral" => $^N}})|(*F))
-						(?(?=(((??{$matches[-1]->{begincharliteral}})
-						((?<escape>(?<escaperaw>\\(?(?=x)x[0-9a-fA-F]++|(?(?=0\d)0[0-7]++|['"?\\abfnrtv0]))))
+(?<inner>\s*+(((?<stringlit>(?=(?<begincharliteral>"|'))
+						(\g{begincharliteral}((?<escape>(?<escaperaw>\\(?(?=x)x[0-9a-fA-F]++|(?(?=0\d)0[0-7]++|['"?\\abfnrtv0]))))
 						(?{call 'addescapesequencetostring'})|
-						(?<text>(?<textraw>((?!(?&escape)|(??{$matches[-1]->{begincharliteral}})).)++)(?{call 'addplaintexttostring'})))*+
-						(??{$matches[-1]->{begincharliteral}})\s*+)*+))(??{qr{\Q$^N\E}})|(?{pop2 \@matches})(*F))
-						(?{call 'add_literal'})(?{pop2 \@matches}))
-						|(?(?!((?&floating)))(?<numberliteral>(?<numberliteralraw>(?(?=0x)0x(?<hex>[0-9a-fA-F]++)|(?(?=0b)0b(?<bin>[01]++)
+						(?<text>(?<textraw>((?!(?&escape)|\g{begincharliteral}).)++)(*call{addplaintexttostring})))*+
+						\g{begincharliteral}\s*+)*+)
+						(*call{add_literal})
+						|(?&floating)|(?<numberliteral>(?<numberliteralraw>(?(?=0x)0x(?<hex>[0-9a-fA-F]++)|(?(?=0b)0b(?<bin>[01]++)
 						|(?(?=0\d)0(?<oct>[0-7]++)|(?<dec>\d++))))(?<lng>[Uu](ll|LL|[lL])?+|(ll|LL|[lL])[Uu]?+)?+)
-						(?{call 'num_lit'}))
-						|(??{qr{\Q$^N\E}}))
+						(*call{num_lit'}))
 						|(?<identifier>\s*+
-						(?<ident>(?&identifierraw))(?{call 'obtainvalbyidentifier'})\s*+)))\s*+)
+						(?<ident>(?&identifierraw))(*call{obtainvalbyidentifier})\s*+)))\s*+)
 
 
 (?<floating>((?<fractional>(?<wholeopt>\d*+)\.(?<fraction>\d++)|(?<whole>\d++)\.)(?<exponent>[eE](?<signexp>[+-])?+\d++)?+
 	|(?<wholenodot>\d++)(?<exponent>[eE](?<signexp>[+-])?+(?<exp>\d++))|\s*+(?<nan>\bNAN\b)\s*+)
-	(?<suffixflt>[flFL])?+(?{call 'collect_float_literal'})
+	(?<suffixflt>[flFL])?+(*call{collect_float_literal})
 )
 
 (?<identifierpure>\b(?>[_a-zA-Z](?<letter>[_a-zA-Z0-9@])*+)\b)
 
-(?<identifierraw>((?&identifierpure))(??{checkident}))
-(?<identifierraw_qualified>((?&identifierpure))(??{checkidentpermissive}))
-(?<identifier_typedef>((?&identifierpure))(??{checktypedef}))
+(?<identifierraw>((?&identifierpure))(*checkident))
+(?<identifierraw_qualified>((?&identifierpure))(*checkidentpermissive))
+(?<identifier_typedef>((?&identifierpure))(*checktypedef))
 
-(?<typeorqualif>((?&identifierpure))(??{checktypeorqualif}))
+(?<typeorqualif>((?&identifierpure))(*checktypeorqualif))

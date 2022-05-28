@@ -20,8 +20,8 @@
             |(?<addopraw>[\+\-]
             |(?<mulopraw>[\*\/\%]))))))))))
             ))))))))))
-                (??{$castexprinsidebinary})
-    (?&binopplusrest)*+(?{call 'binary'})))
+                (*isolate{})(?&castexpr)(*end{})
+    (?&binopplusrest)*+(*call{binary})))
 
 
 (?<orlogiorsomething>(?&binopplusrest)++)

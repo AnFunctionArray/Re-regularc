@@ -1,51 +1,43 @@
-#include "statement.regex", "inner.regex", "unary.regex", "binary.regex", "typename.regex"
-#entry ^cprogram
 
-(?<primexprraw>(?&assignorsomething)(,(?{call 'comma'})(?&assignorsomething))*+)
+(?<primexprraw>(?&assignorsomething)(,(*call{comma})(?&assignorsomething))*+)
 
-(?<primexprnew>(?{push2 \@flags, {"newexpr"}})(?(?=((?&primexprraw)))(??{qr{\Q$^N\E}})
-	(?{pop2 \@flags})|(?{pop2 \@flags})(*F)))
+(?<primexprnew>(?&primexprraw))
 
-(?<primexprcall>(?{push2 \@flags, {"callexpr"}})(?(?=((?&primexprraw)))(??{qr{\Q$^N\E}})
-	(?{pop2 \@flags})|(?{pop2 \@flags})(*F)))
+(?<primexprcall>(?&primexprraw))
 
-(?<castexpr>(?(?=((?&typenamerev)))(??{qr{\Q$^N\E}})|(?<unaryexpr>(?(?=((?&inner)))(??{qr{\Q$^N\E}})
+(?<castexpr>(?&typenamerev)|(?<unaryexpr>((?&inner)
 						|(?<inparenths>\s*+[(](?&primexprnew)[)]
-						\s*+))(((\[(?&primexprnew)\](?{call 'subscript'})|[(](?{call 'startfunctioncall'})(?&primexprcall)?+[)]
-						(?{call 'endfunctioncall'}))\s*+
+						\s*+)(((\[(?&primexprnew)\](*call{subscript})|[(](*call{startfunctioncall})(?&primexprcall)?+[)]
+						(*call{endfunctioncall}))\s*+
 						|(?<arrowordot>(?<arrowordotraw>[.]|->))(?&identifierminemember)
 						|(?<postfixarith>(?<postfixarithraw>[+][+]|--)\s*+)
-						(?{call 'unaryincdec'})))*+
-						|(?&unary))))
+						(*call{unaryincdec}))*+
+						|(?&unary)))
 
 (?<identifierminemember>\s*+(?<ident>(?&identifierraw_qualified))
-	(?{call 'memberaccess'})\s*+)
+	(*call{memberaccess})\s*+)
 
 (?<testxpr>(?&inner)|(?&inparenths))
 
-(?<ternarylogicopt>(?(?=((?&orlogiorsomething)))
-		(?{--$recording; print "minus minus assignorsomething $recording\n"})(?{push2 \@assrec, \@{$savedcallouts[-1]}; pop2 \@savedcallouts})
-		(?{call 'begin_binary'})(?{replayrecord \@assrec; pop2 \@assrec})(??{qr{\Q$^N\E}})(?{call 'end_binary'})
-		|(?{--$recording})(?{replayrecord})(?{pop2 \@savedcallouts})
-	)(?&ternaryorsomething)
+(?<ternarylogicopt>((?&orlogiorsomething)
+	(*replaywrappedincalls{begin_binary, end_binary})
+	|(*replay{}))
+	(*COMMIT)
+	(?&ternaryorsomething)?+
 )
 
 (?<assignorsomething>
-	(?(?=(?{push2 \@savedcallouts, []})
-		(?{++$recording; print "recording assignorsomething\n"})((?&unaryexpr)))(??{qr{\Q$^N\E}})
-	(?(?=((?<assignop>=(?!=)|\*=|\/=|%=|\+=|-=|<<=|>>=|&=|\^=|\|=)\s*+))
-		(??{qr{\Q$^N\E}})(?{--$recording; print "minus minus assignorsomething $recording\n"})
-		(?{replayrecord; pop2 \@savedcallouts})(?&assignorsomething)(?{assignment})
+	(*record{})((?&unaryexpr)
+	((?<assignop>=(?!=)|\*=|\/=|%=|\+=|-=|<<=|>>=|&=|\^=|\|=)\s*+
+		(?&assignorsomething)(*call{assignment})
 		|(?&ternarylogicopt))
-		|(?{$savedcallouts[-1] = []; print "resetting record\n"})(?(?=((?&typenamerev)))|(?{--$recording})(?{pop2 \@savedcallouts})(*F))
-		(??{qr{\Q$^N\E}})(?&ternarylogicopt))
+		|(?&typenamerev)(?&ternarylogicopt)
+		|(*drop{}))
 )
 
-(?<ternaryorsomething>(?(?=((?{push2 \@savedcallouts, []})
-		(?{++$recording; print "recording ternaryorsomething\n"})(?&ternaryrest)))(??{qr{\Q$^N\E}})
-	(?{call 'begin_binary'})(?&castexpr)(?&ternarylogicopt)(?{call 'end_ternary'})(?{call 'end_binary'})
-	|(?{--$recording})(?{pop2 \@savedcallouts}))
+(?<ternaryorsomething>(?&ternaryrest)
+	(?&castexpr)(?&ternarylogicopt)(*call{end_ternary})
 )
 
-(?<ternaryrest>\s*+\?(?{call 'begin_ternary'})(?&primexprraw)
-	:(?{call 'mid_ternary'})\s*+)
+(?<ternaryrest>\s*+\?(*call{begin_ternary})(?&primexprraw)
+	:(*call{mid_ternary})\s*+)

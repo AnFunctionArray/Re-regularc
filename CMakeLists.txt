@@ -2,13 +2,6 @@ cmake_minimum_required(VERSION 3.16.3)
 
 project(regularc)
 
-add_custom_command(
-    OUTPUT ${CMAKE_SOURCE_DIR}/perltoc.c
-    COMMAND xsubpp ${CMAKE_SOURCE_DIR}/src/perltoc.xs > ${CMAKE_SOURCE_DIR}/perltoc.c
-)
-
-find_package(PerlLibs 5.28.0)
-
 if(NOT DEFINED ENV{LLVM_CONFIG})
     find_program(LLVM_CONFIG "llvm-config")
 else()
@@ -24,13 +17,11 @@ execute_process(COMMAND ${LLVM_CONFIG} --includedir
 execute_process(COMMAND ${LLVM_CONFIG} --libdir
                 OUTPUT_VARIABLE llvm_libdir)
 
-add_executable(regularc llvm/llvmgen.cpp src/main.c perltoc.c)
-
-if(NOT PERLLIBS_FOUND)
-    message(WARNING "Missing perl libraries")
-endif()
+add_executable(regularc llvm/llvmgen.cpp oniguruma/handler.c oniguruma/onigurumaparse.cpp)
 
 find_package(range-v3 CONFIG REQUIRED)
+
+find_package(oniguruma CONFIG REQUIRED)
 
 if(llvm_libraries STREQUAL "")
     message(WARNING "Missing valid LLVM_CONFIG")
@@ -44,7 +35,7 @@ string(STRIP ${llvm_libdir} llvm_libdir)
 
 target_link_directories(regularc PRIVATE ${llvm_libdir})
 
-target_link_libraries(regularc PRIVATE ${llvm_libraries} -rdynamic ${PERL_LIBRARY} -lpthread range-v3 range-v3-meta range-v3::meta range-v3-concepts -lz -lcurses -ldl)
+target_link_libraries(regularc PRIVATE ${llvm_libraries} -rdynamic onig -lpthread range-v3 range-v3-meta range-v3::meta range-v3-concepts -lz -lcurses -ldl)
 
 target_compile_options(regularc PRIVATE -rdynamic -Ofast -g)
 

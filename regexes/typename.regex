@@ -3,35 +3,25 @@
 (?<qualifs>(?<typesandqualifiers>\s*+
 						(?<typesandqualifiersmask>(?&typeorqualif))\s*+))
 
-(?<align>\s*+\b__declspec[(]\s*+\balign[(]\s*+(?<alignnum>(?&numberliteralraw))\s*+[)]\s*+[)]\s*+)
-
 (?<typename>\s*+[(]
 (?<typenameinner>
-	(?{push2 \@matches, {}})
 
-	(?(?=
-		(?{push2 \@savedcallouts, []})
-		(?{++$recording; print "recording typename\n"})
+	((*record{})
 
-		(((?&qualifs)|\s*+((?(?{eval {exists $matches[-1]{strc}} or 0})(*F))(?(?{eval {exists $matches[-1]{typedefnmmatched}} or 0})(*F))
-		(((?&structorunion))(?{$matches[-1]{strc}=$^N})
-		|((?&identifier_typedef))(?{$matches[-1]{typedefnmmatched}=$^N})))
-		|(?(?{eval {exists $matches[-1]{typedefkey}} or 0})(*F))((\btypedef\b))(?{$matches[-1]{typedefkey}=$^N})\s*+)++))
+		(?<typenamequalifs>(?&qualifs)|(?&structorunion))++
 
-		|(?{pop2 \@savedcallouts})(?{--$recording; print "minus minus typename $recording\n"})(?{pop2 \@matches})(*F))
+		|(*drop{})
+	)
 		
-	(?{--$recording})(?{push2 \@flags, {"optoutter"}})
-	(?{push2 \@typenamequalifs, \@{$savedcallouts[-1]}; pop2 \@savedcallouts})
-	
-		(??{qr{\Q$^N\E}})(?{call 'identifier_decl'})
+	(*shelfrecord{typenameinner})
+
+		(*call{identifier_decl})
 		(?&abstdecl)?+
-		(?{call 'enddeclaration'})
+		(*call{enddeclaration})
 
-		(?{pop2 \@flags, {"optoutter"}})
-		(?{replayrecord \@typenamequalifs})
-		(?{pop2 \@matches; pop2 \@typenamequalifs}))
+	(*replay{typenameinner})
 
-		[)](?{call 'endqualifs'})\s*+
+		[)](*call{endqualifs})\s*+
 		
 )
 
@@ -40,165 +30,135 @@
 (?<abstrmostoutter>\s*+([(](?&abstdecl)[)]|(?&identifierminedecl))\s*+)
 
 (?<abstrmostoutterparams>\s*+
-			[(](?&abstdecl)[)]|
-			(?(?=((?&identifierminedecl)))(??{qr{\Q$^N\E}})|(?{call 'identifier_decl'}))
-\s*+)
+			[(](?&abstdecl)[)]\s*+|
+			((?&identifierminedecl)|(*call{identifier_decl}))
+)
 
 (?<identifierminedecl>\s*+(?<ident>(?&identifierraw_qualified))
-	(?{call 'identifier_decl'})\s*+)
+	(*call{identifier_decl})\s*+)
 
 (?<Tabstrrestalt>
-	(?(?{existsflag "outterparams", {"outter" => undef, "optoutter"}})
+	(?(*existsflag{outterparams,outter,optoutter})
 	
-	(?(?=(?{push2 \@savedcallouts, []; push2 \@matches, {}})
-		(?{++$recording; print "recording abstrmostoutterparams subs\n"})
-			(?{call 'identifier_decl'})((?&abstrsubs))(?{$matches[-1]{sub}=$^N}))(?{--$recording})
-		(?{qr{\Q$matches[-1]{sub}\E}})(?{call replayrecord})(?{pop2 \@savedcallouts; pop2 \@matches})
-		
-		|(?{--$recording})(?{pop2 \@savedcallouts; pop2 \@matches})(?&abstrmostoutterparams))
+			((*record{})(*call{identifier_decl})(?&abstrsubs)(*replay{})|(*drop{}))
 
-	(?&abstrsubs)*+
+			(?&abstrsubs)*+
 
-	|(?(?{existsflag "outter", {"optoutter" => undef, "outterparams"}})(?&abstrmostoutter)(?&abstrsubs)*+
-	|(?(?{existsflag "optoutter", {"outter" => undef, "outterparams"}})((?&abstrmostoutteropt)(?&abstrsubs)*+|(?&abstrsubs)++))))
+	|(?(*existsflag{outter,outterparams,optoutter})(?&abstrmostoutter)(?&abstrsubs)*+
+	|(?(*existsflag{optoutter,outterparams,outter})((?&abstrmostoutteropt)(?&abstrsubs)*+|(?&abstrsubs)++))))
 	)
 
 (?<Tinside>
-	(?(?{existsflag "outterparams", {"outter" => undef, "optoutter"}})(?&abstrmostoutterparams)
-	|(?(?{existsflag "outter", {"optoutter" => undef, "outterparams"}})(?&abstrmostoutter)
-	|(?(?{existsflag "optoutter", {"outter" => undef, "outterparams"}}))(?&abstrmostoutteropt)?+))
+	(?(*existsflag{outterparams,outter,optoutter})(?&abstrmostoutterparams)
+	|(?(*existsflag{outter,outterparams,optoutter})(?&abstrmostoutter)
+	|(?(*existsflag{optoutter,outterparams,outter})(?&abstrmostoutteropt)?+))
 	)
+)
 
-(?<param>(?{push2 \@flags, {"outterparams"=>undef,"nonopt"=>undef}})(?&abstdeclorallqualifs))
+(?<param>(*flags{outterparams,nonopt,nonbitfl})(?{clear}(?&abstdeclorallqualifs)))
 
 (?<closingparen>(?![(])[)])
 
 (?<openparen>[(](?<![)]))
 
-(?<abstrsubs>\s*+(\[(?{call 'beginconstantexpr'})(?&primexprnew)\]
-						(?{call 'addsubtotype'})(?{call 'endconstantexpr'})
-						|(?(?=((?&openparen)\s*+((\.\.\.)(?{$matches[-1]{rest}=$^N})|\bvoid\b)?+\s*+(?&closingparen))
-						(?{call 'startfunctionparamdecl'})(?{call 'endfunctionparamdecl'}))
-						(??{qr{\Q$^N\E}})
-						|(?(?=(?{push2 \@savedcallouts, []})(?{push2 \@matches, {}})
-						(?{++$recording; print "recording abstrsubs firstparam\n"; })(?{call 'startfunctionparamdecl'})((?&openparen)(?&param)))
-						(??{qr{\Q$^N\E}})
-							(,(?(?=(\s*+(\.\.\.)(?{$matches[-1]{rest}=$^N})\s*+))(??{qr{\Q$^N\E}})|(?&param)))*+
-						\s*+(?&closingparen)(?{--$recording})(?{replayrecord})(?{pop2 \@savedcallouts})(?{call 'endfunctionparamdecl'})(?{pop2 \@matches})
-						|(?{--$recording})
-						(?{pop2 \@savedcallouts})(?{pop2 \@matches})(*F)))
-						)\s*+)
+(?<abstrsubs>\s*+(\[(*call{beginconstantexpr})(?&primexprnew)\]
+						(*call{addsubtotype})(*call{endconstantexpr})
+						|(
+							(?&openparen)
 
-(?<abstdecl>
-		(?(?=(?<abstrptrrev>(?<abstrptr>\s*+[*]\s*+
-						(?<qualifptr>(?{push2 \@savedcallouts, []; ++$recording;})
-							(?&typeorqualif)*+
-							(?{pop2 \@savedcallouts; --$recording;})
-						)
-						)
-						(?(?!(?<foundabstr>(?&abstrptrrev))(?{call 'addptrtotype'}))
-						(?<abstrrest>(?&Tinside)(?&abstrsubs)*+
-						(?{call 'addptrtotype'}))|
-						\g{foundabstr})))(??{qr{\Q$^N\E}})|(?&Tabstrrestalt))
+							(*call{startfunctionparamdecl})
+
+							((?!(?&singlevoid)(?&closingparen))(&param)(,(?&param))*+
+								(?<rest>,\s*+\.\.\.\s*+)?+
+							|(?<singlevoid>\s*+\bvoid\b\s*+))
+
+							(*call{endfunctionparamdecl})
+
+							(?&closingparen)
+						)\s*+)
 )
 
-(?<callingconv>\b(__cdecl|__stdcall|__thiscall|__fastcall)\b)
+(?<abstdecl>
+		(?<abstrptrrev>(?<abstrptr>\s*+[*]\s*+
+							(?&typeorqualif)*+
+						)
+						(?(?!(?<foundabstr>(?&abstrptrrev))(*call{addptrtotype}))
+						(?<abstrrest>(?&Tinside)(?&abstrsubs)*+
+						(*call{addptrtotype}))|
+						\g{foundabstr}))|(?&Tabstrrestalt)
+)
 
 (?<Tasbtdecloutter>
 	(?&abstdecl)
 )
 
 (?<Tabstinitorbitfl>
-	(?(?{existsflag "bitfl"})(?&abstrbitfield)|(?&abstrinitialization))
-	)
+	(?(*existsflag{bitfl,nonbitfl})(?&abstrbitfield)|(?&abstrinitialization))
+)
 
 (?<Tdecl>(?&Tasbtdecloutter)
 			(?&Tabstinitorbitfl)?+)
 
+(?<abstdeclorallqualifsqualifs>((?&qualifs)|(?&structorunion))++)
 
-(?<declcomma>,(?&Tdecl))
-
-(?<abstdeclorallqualifsqualifs>(((?&qualifs))|\s*+((?(?{eval {exists $matches[-1]{strc}} or 0})(*F))
-		(?(?{eval {exists $matches[-1]{typedefnmmatched}} or 0})(*F))
-		(((?&structorunion))(?{$matches[-1]{strc}=$^N})
-		|(?(?{eval {exists $matches[-1]{typefound}} or 0})(*F))((?&identifier_typedef))(?{$matches[-1]{typedefnmmatched}=$^N}))
-		|(?(?{eval {exists $matches[-1]{typedefkey}} or 0})(*F))((\btypedef\b))(?{$matches[-1]{typedefkey}=$^N}))\s*+)++)
-
-(?<abstdeclorallqualifsdestr>
-	(?{push2 \@declqualifs, \@{$savedcallouts[-1]}; pop2 \@savedcallouts})
-
-	(?(?=(?<declinner>(?&Tdecl)(?{call 'enddeclaration'})(?{replayrecord \@declqualifs})(?{call 'endqualifs'})))\g{declinner}
-	(?(?{eval {existsflag "outterparams"} or 0})|(,(?&declinner))*+)|(?(?{print "dump\n";eval {exists $matches[-1]{strc}} or 0})
-	|
-	(?{pop2 \@flags, undef})
-	(?{pop2 \@declqualifs})
-	(?{pop2 \@matches})(*F)))
-
-	(?{pop2 \@declqualifs})
-	(?{pop2 \@matches}))
 
 (?<abstdeclorallqualifs>
 	
-	(?{push2 \@matches, {}})
+	((*record{})
 
-	(?(?=(?{push2 \@savedcallouts, []})
-		(?{++$recording; print "recording abstdeclorallqualifs\n"})
+		(?&typenamequalifs)++
 
-		((?&abstdeclorallqualifsqualifs)))
-
-		(?{--$recording})
-		(??{qr{\Q$^N\E}})
-		|(?(?{eval {existsflag "opt", {"nonopt"}} or 0})
-	(?{--$recording})
-	(?{print "opt??\n"})
+		|(*dropif{nonopt,opt})
+	)
 	|
-	(?{pop2 \@flags, undef})
+	(*shelfrecord{declqualifs})
 
-	(?{pop2 \@savedcallouts})(?{--$recording})(?{pop2 \@matches})(*F)))
-	
-	(?&abstdeclorallqualifsdestr)
+	(*COMMIT)
 
-	(?{pop2 \@flags, undef})
+	(?<declinner>(?&Tdecl)(*call{enddeclaration})(*replaydontdestruct{declqualifs})(*call{endqualifs}))
+	(?(*existsflag{outterparam,outter,optoutter})|(,(?&declinner))*+)
+
+	(*destruct{declqualifs})
 )
 
-(?<declopt>(?{push2 \@flags, {"outter"=>undef,"opt"=>undef}})(?&abstdeclorallqualifs)(?(?!\s*+;)(?&compoundstatement)|\s*+;(?{call 'endfulldecl'})\s*+))
+(?<declopt>(*flags{outter,opt,nonbitfl})(?{clear}(?&abstdeclorallqualifs))((?(?!\s*+;)(?&compoundstatement)|\s*+;(*call{endfulldecl})\s*+)))
 
-(?<decl>(?{push2 \@flags, {"outter"=>undef,"nonopt"=>undef}})(?&abstdeclorallqualifs)\s*+;(?{call 'endfulldecl'})\s*+)
+(?<decl>(*flags{outter,nonopt,nonbitfl})(?{clear}(?&abstdeclorallqualifs))\s*+;(*call{endfulldecl})\s*+)
 
 (?<cprogram>(?&declopt))
 
-(?<typenamerev>(?(?=(?{push2 \@savedcallouts, []})
-		(?{++$recording; print "recording typenamerev\n"})(?<typenamerev1>(?&typename)))
-		(?{--$recording})\g{typenamerev1}(?{push2 \@typenamecurrrecord, \@{$savedcallouts[-1]}; pop2 \@savedcallouts})
+(?<typenamerev>((*record{})(?&typename)(*shelfrecord{typenamerev})
 		(?&castexpr)
-		(?{replayrecord \@typenamecurrrecord})(?{pop2 \@typenamecurrrecord})
-		(?{call 'applycast'})
+		(*replay{typenamerev})
+		(*call{applycast})
 		
-		|(?{pop2 \@savedcallouts})(?{--$recording})(*F))
+		|(*drop{}))
 )
 
 
-(?<abstrbitfield>\s*+:\s*+(?{call 'beginconstantexpr'})(?&assignorsomething)(?{call 'endconstantexpr'}))
+(?<abstrbitfield>\s*+:\s*+(*call{beginconstantexpr})(?&assignorsomething)(*call{endconstantexpr}))
 (?<designator>\s*+(\[(?&primexprnew)\]|\.\s*+(?&identifier))\s*+)
 (?<initializer>(?&assignorsomething)|\s*+[{]((?&designator)++=)?+(?&initializer)?(,(?&initializer))*+,?+\s*+[}]\s*+)
 (?<abstrinitialization>=(?&initializer))
 
-(?<add_ident_to_enum_def>\s*+(?<identlasttag>(?&identifierraw_qualified))(?{call 'add_ident_to_enum_def'})\s*+)
+(?<add_ident_to_enum_def>\s*+(?<identlasttag>(?&identifierraw_qualified))(*call{add_ident_to_enum_def})\s*+)
 
 
-(?<strcelem>(?{push2 \@flags, {"bitfl"=>undef, "outter"=>undef, "nonopt"=>undef}})(?&abstdeclorallqualifs)\s*+;\s*+)
+(?<strcelem>(*flags{outter,nonopt,bitfl})(?{clear}(?&abstdeclorallqualifs))\s*+;\s*+)
 
-(?<structbody>\s*+[{](?{push2 \@structbodystack, $recording; $recording = 0})(?(?{eval {exists $matches[-1]{enum}} or 0})(?{call 'begin_enumerator_def'})
+(?<structbody>\s*+[{](*dark{})(?(<enum>)(*call{begin_enumerator_def})
 	(?<enumerator>(?&add_ident_to_enum_def)
-	((=(?{call 'beginconstantexpr'})(?&assignorsomething)(?{call 'end_ass_to_enum_def'}))
-	|(?{call 'end_without_ass_to_enum_def'})))?+(,(?&enumerator))*+,?+\s*+
-	|(?{call 'struc_or_union_body'})\s*+(?&strcelem)*+)\s*+
-	[}]\s*+(?(?{eval {exists $matches[-1]{enum}} or 0})()|(?{call 'endbuildingstructorunion'}))\s*+(?{$recording = pop2 \@structbodystack}))
+	((=(*call{beginconstantexpr})(*isolate{})(?&assignorsomething)(*end{})(*call{end_ass_to_enum_def}))
+	|(*call{end_without_ass_to_enum_def})))?+(,(?&enumerator))*+,?+\s*+
+	|(*call{struc_or_union_body})\s*+(?&strcelem)*+)\s*+
+	[}]\s*+(?(<enum>)|(*call{endbuildingstructorunion}))\s*+
+	(*bright{})
+)
 
 (?<structorunion>
-	(?=(?<begin>\s*+\b(?<structorunionlast>struct|union|(enum)(?{$matches[-1]{enum}=$^N}))\b\s*+
-	(((?&identifierminestruct))(?{$matches[-1]{lasttag}=$^N}))?+))\g{begin}
-	(?(?=(?<body>(?&structbody)))\g{body}|(?(?{eval {exists $matches[-1]{lasttag}} or 0})|(*F)))
+	(?=(?<begin>\s*+\b(?<structorunionlast>struct|union|(?<enum>enum))\b\s*+
+	(?<lasttag>(?&identifierminestruct))?+))\g{begin}
+	((?&structbody)|(?(<lasttag>)|(*F)))
 	(?{call 'add_tag'})
 )
 

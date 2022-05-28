@@ -75,7 +75,7 @@
 #endif
 
 extern "C" {
-#include "../src/main.h"
+#include "../oniguruma/common.h"
 }
 
 DLL_EXPORT void insertinttoimm(const char* str, size_t szstr, const char* suffix, size_t szstr1, int type);
@@ -4294,13 +4294,6 @@ std::list<val>& bindings_compiling::immidiates = ::immidiates;
 
 #endif
 
-
-extern "C" {
-#include <EXTERN.h> /* from the Perl distribution     */
-#include <perl.h>	/* from the Perl distribution     */
-#include <XSUB.h>
-}
-
 #include <cassert>
 
 DLL_EXPORT void docall(const char*, size_t, void*);
@@ -4314,8 +4307,6 @@ void call(std::unordered_map<unsigned, std::string> hash, std::string callname) 
 }
 
 std::queue<std::pair<std::unordered_map<unsigned, std::string>, std::string>> callstack;
-
-extern "C" PerlInterpreter* my_perl;
 
 extern "C" void *wait_for_call(void*) {
 	do {
@@ -4335,7 +4326,7 @@ extern "C" void *wait_for_call(void*) {
 }
 
 static std::list<std::pair<std::unordered_map<unsigned, std::string>, std::string>> recordstack;
-
+#if 0
 DLL_EXPORT void do_callout(SV * in, HV * hash)
 {
 
@@ -4381,7 +4372,7 @@ DLL_EXPORT void do_callout(SV * in, HV * hash)
 		}
 	}
 }
-
+#endif
 
 DLL_EXPORT void startrecording() {
 	recordstack.push_back({});
