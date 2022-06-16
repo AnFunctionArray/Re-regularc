@@ -4590,30 +4590,10 @@ const llvm::fltSemantics& getfltsemfromtype(::type flttype) {
 			llvm::APFloatBase::IEEEsingle());
 }
 DLL_EXPORT void collect_float_literal(std::unordered_map<unsigned, std::string> &hashes) {
-	std::string wholepart, fractionpart, exponent, exponent_sign;
-	std::string ntoclear;
-	if ((ntoclear = hashes["wholeopt"_h]).empty())
-		if ((ntoclear = hashes["whole"_h]).empty())
-			if ((ntoclear = hashes["wholenodot"_h]).empty())
-				goto rest;
-
-	if (wholepart.empty())
-		wholepart = ntoclear;
-rest:
-	ntoclear = hashes["fraction"_h];//getnameloc2("fraction", *ptable, a, 0);
-
-	if (fractionpart.empty())
-		fractionpart = ntoclear;
-
-	ntoclear = hashes["signexp"_h];
-
-	if (exponent_sign.empty())
-		exponent_sign = ntoclear;
-
-	ntoclear = hashes["exp"_h];
-
-	if (exponent.empty())
-		exponent = ntoclear;
+	std::string wholepart = hashes["whole"_h],
+		fractionpart = hashes["fraction"_h],
+		exponent_sign = hashes["signexp"_h],
+		exponent = hashes["exponent"_h];
 	std::list<::type> currtype = { 1, ::type::BASIC };
 
 	llvm::Type* pllvmtype;
