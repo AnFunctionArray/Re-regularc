@@ -164,7 +164,7 @@ return_t escape(std::unordered_map<unsigned, std::string> priormatches) {
 	return { false, currrecord };
 }
 
-return_t inner(std::unordered_map<unsigned, std::string> priormatches) {
+return_t stringlit(std::unordered_map<unsigned, std::string> priormatches) {
 	priormatches.clear();
 	consumewhitespace();
 
@@ -174,7 +174,8 @@ return_t inner(std::unordered_map<unsigned, std::string> priormatches) {
 		::doit(what, (void*)&priormatches, currrecord);
 	};
 
-	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>)) {
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>), 
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
 		return what(priormatches).handle(priormatches, currrecord);
 	};
 
@@ -211,6 +212,7 @@ return_t inner(std::unordered_map<unsigned, std::string> priormatches) {
 				currlexing++;
 			}
 		}
+		doit("add_literal");
 		consumewhitespace();
 		return { true, currrecord };
 	}
@@ -228,8 +230,9 @@ return_t numberliteral(std::unordered_map<unsigned, std::string> priormatches) {
 		::doit(what, (void*)&priormatches, currrecord);
 	};
 
-	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>)) {
-		return what(priormatches).handle(priormatches, currrecord);
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches).handle(priormatches, currrecord);
 	};
 
 	switch (stringhash(std::string{ currlexing, currlexing + 1 }.c_str())) if (0);
@@ -263,6 +266,29 @@ return_t numberliteral(std::unordered_map<unsigned, std::string> priormatches) {
 		else {
 			return { false, currrecord };
 		}
+	}
+
+	{
+		auto beg = currlexing;
+	checklong:
+
+		if (ranges::contains(std::string{ "lL" }, *currlexing)) {
+			++currlexing;
+			if (ranges::contains(std::string{ "lL" }, *currlexing))
+				++currlexing;
+		}
+		if (ranges::contains(std::string{ "uU" }, *currlexing)) {
+			++currlexing;
+			goto checklong;
+		}
+
+		if (beg != currlexing) {
+			priormatches["lng"_h] = std::string{ beg , currlexing };
+		}
+
+		doit("num_lit");
+
+		consumewhitespace();
 
 		return { true, currrecord };
 	}
@@ -277,8 +303,9 @@ return_t exponent(std::unordered_map<unsigned, std::string> priormatches) {
 		::doit(what, (void*)&priormatches, currrecord);
 	};
 
-	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>)) {
-		return what(priormatches).handle(priormatches, currrecord);
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches).handle(priormatches, currrecord);
 	};
 
 	if (ranges::contains(std::string{ "eE" }, *currlexing)) {
@@ -306,8 +333,9 @@ return_t floating(std::unordered_map<unsigned, std::string> priormatches) {
 		::doit(what, (void*)&priormatches, currrecord);
 	};
 
-	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>)) {
-		return what(priormatches).handle(priormatches, currrecord);
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches).handle(priormatches, currrecord);
 	};
 
 	if(*currlexing == '.') 
@@ -340,7 +368,6 @@ success:
 	{
 		auto beg = currlexing;
 
-		if (ranges::contains(std::string{ "flFL" }, *currlexing)) ++currlexing;
 		if (ranges::contains(std::string{ "flFL" }, *currlexing)) ++currlexing;
 
 		if (beg != currlexing) {
