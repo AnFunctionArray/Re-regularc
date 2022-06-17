@@ -376,6 +376,24 @@ success:
 
 		doit("collect_float_literal");
 
+		consumewhitespace();
+
 		return { true, currrecord };
 	}
+}
+
+return_t identifier(std::unordered_map<unsigned, std::string> priormatches) {
+	consumewhitespace();
+
+	if (isalpha(*currlexing) || *currlexing == '_') {
+		auto beg = currlexing;
+		++currlexing;
+		while (isalnum(*currlexing) || *currlexing == '_') ++currlexing;
+		priormatches["ident"_h] = std::string{ beg , currlexing };
+		consumewhitespace();
+
+		return { true, {}, priormatches };
+	}
+
+	return { false };
 }
