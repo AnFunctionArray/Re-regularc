@@ -686,6 +686,34 @@ return_t identifierminedecl(std::unordered_map<unsigned, std::string> priormatch
 	return { false };
 }
 
+return_t ident(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto last = currlexing;
+
+	if (call(identifier) && !isidentkeyword(priormatches["ident"_h])) {
+		doit("obtainvalbyidentifier");
+		consumewhitespace();
+
+		return { true, currrecord };
+	}
+
+	currlexing = last;
+
+	return { false };
+}
+
 return_t abstdecl(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
 	consumewhitespace();
 
@@ -753,6 +781,8 @@ return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::un
 		if (*currlexing == '(') {
 			call(abstdecl);
 			assert(*currlexing == ')');
+			++currlexing;
+			consumewhitespace();
 		}
 		else {
 			if (!call(identifierminedecl)) {
@@ -767,6 +797,8 @@ return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::un
 		if (*currlexing == '(') {
 			call(abstdecl);
 			assert(*currlexing == ')');
+			++currlexing;
+			consumewhitespace();
 			return { true, currrecord };
 		}
 		else {
@@ -778,6 +810,8 @@ return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::un
 		if (*currlexing == '(') {
 			call(abstdecl);
 			assert(*currlexing == ')');
+			++currlexing;
+			consumewhitespace();
 			return { true, currrecord };
 		}
 		
@@ -788,6 +822,7 @@ return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::un
 }
 
 return_t primexpr(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
+return_t primexprcall(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
 return_t param(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
 
 return_t abstrsubs(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
@@ -1066,11 +1101,11 @@ return_t structorunion(std::unordered_map<unsigned, std::string> priormatches, s
 				}
 			}
 
-			consumewhitespace();
-
 			assert(*currlexing == '}');
 
 			currlexing++;
+
+			consumewhitespace();
 
 			recording = oldrecord;
 
@@ -1081,13 +1116,13 @@ return_t structorunion(std::unordered_map<unsigned, std::string> priormatches, s
 
 			while (call(strcelem));
 
-			consumewhitespace();
-
 			assert(*currlexing == '}');
 
 			doit("endbuildingstructorunion");
 
 			currlexing++;
+
+			consumewhitespace();
 
 			recording = oldrecord;
 
@@ -1252,6 +1287,10 @@ return_t initializer(std::unordered_map<unsigned, std::string> priormatches, std
 		}
 
 		assert(*currlexing == '}');
+
+		++currlexing;
+
+		consumewhitespace();
 
 		return { true, currrecord };
 	}
@@ -1435,4 +1474,277 @@ return_t typename_(std::unordered_map<unsigned, std::string> priormatches, std::
 	flag["optinit"_h] = "none"_h;
 
 	return callfwd(abstdeclorallqualifs);
+}
+
+return_t inner(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	return {call(stringlit) || call(floating) || call(numberliteral) || call(numberliteral) || call(ident), currrecord};
+}
+
+return_t inparenths(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (*currlexing == '(') {
+		++currlexing;
+		call(primexpr);
+		assert(*currlexing == ')');
+		++currlexing;
+		consumewhitespace();
+		return { true, currrecord };
+	}
+
+	return { false };
+}
+
+return_t postfix(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	switch (*currlexing) if (0);
+	else if (0) {
+	case '[':
+		call(primexpr);
+		assert(*currlexing == ']');
+		doit("subscript");
+		++currlexing;
+		consumewhitespace();
+		return { true, currrecord };
+	}
+	else if (0) {
+	case '(':
+		doit("startfunctioncall");
+		call(primexprcall);
+		assert(*currlexing == ')');
+		doit("endfunctioncall");
+		++currlexing;
+		consumewhitespace();
+		return { true, currrecord };
+	}
+
+	if (*currlexing == '.') {
+		priormatches["arrowordotraw"_h] = '.';
+		++currlexing;
+		goto memberaccess;
+	}
+	else if (std::string{ currlexing, currlexing + 2 } == "->") {
+		priormatches["arrowordotraw"_h] = "->";
+		currlexing += 2;
+	memberaccess:
+		call(identifier);
+		doit("memberaccess");
+
+		return { true, currrecord };
+	}
+	else if (ranges::contains(std::array{ "++"_h, "--"_h }, stringhash(std::string{ currlexing, currlexing + 2 }.c_str()))) {
+		priormatches["postfixarithraw"_h] = std::string{ currlexing, currlexing + 2 };
+		currlexing += 2;
+		doit("unaryincdec");
+
+		return { true, currrecord };
+	}
+
+	return { false };
+}
+
+return_t unary(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (ranges::contains(std::array{ "++"_h, "--"_h }, stringhash(std::string{ currlexing, currlexing + 2 }.c_str()))) {
+		priormatches["prefixarithraw"_h] = std::string{ currlexing, currlexing + 2 };
+		currlexing += 2;
+		call(unaryexpr);
+		doit("unaryincdec");
+
+		return { true, currrecord };
+	}
+
+	switch (*currlexing) if (0);
+	else if (0) {
+	case '&':
+	case '*':
+	case '+':
+	case '-':
+	case '~':
+	case '!':
+		priormatches["unop"_h] = *currlexing;
+		currlexing++;
+		call(castexpr);
+		doit("unary");
+
+		return { true, currrecord };
+	}
+
+	const std::string sizeofkey = "sizeof";
+
+	if (isonboundary() && 
+		std::string{ currlexing, currlexing + sizeofkey.length() } == sizeofkey
+		&& isonboundary(currlexing + sizeofkey.length())) {
+		currlexing + sizeofkey.length();
+		if (call(typename_)) {
+			doit("endsizeoftypename");
+		}
+		else {
+			doit("beginsizeofexpr");
+			assert(call(unaryexpr));
+			doit("endsizeofexpr");
+		}
+
+		return { true, currrecord };
+	}
+
+	return { false };
+}
+
+return_t unaryexpr(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (call(inner) || call(inparenths)) {
+		while (call(postfix));
+		return { true, currrecord };
+	}
+	else {
+		return callfwd(unary);
+	}
+}
+
+return_t castexpr(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (auto res = callfwd(typenamerev); res.result) {
+		return res;
+	}
+	else {
+		return callfwd(unary);
+	}
+}
+
+return_t typenamerev(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	++recording;
+
+	if (call(typename_)) {
+		--recording;
+		record tpnmrec = currrecord;
+		call(castexpr);
+		replay(tpnmrec);
+		doit("applycast");
+		return { true, currrecord };
+	}
+
+	--recording;
+
+	return { false };
 }
