@@ -110,7 +110,7 @@ void doit(std::string fnname, void* phashmap, record &refrecord) {
 	}
 }
 
-void replay(record &what) {
+static void replay(record &what) {
 
 	if (recording);
 	else for (const auto& call : what) {
@@ -444,6 +444,9 @@ return_t qualifiersidentifier(std::unordered_map<unsigned, std::string> priormat
 	return { false, currrecord };
 }
 
+return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
+return_t abstrsubs(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
+
 return_t abstrptrrev(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
 	priormatches.clear();
 	consumewhitespace();
@@ -484,13 +487,104 @@ return_t abstrptrrev(std::unordered_map<unsigned, std::string> priormatches, std
 
 		currrecord.resize(currrecordsize);
 
-		if (!call(abstrptrrev)) {
+		if (call(abstrptrrev)) {
 			doit("addptrtotype");
 		}
 		else {
-
+			assert(call(Tinside));
+			while (call(abstrsubs));
+			doit("addptrtotype");
 		}
 	}
+}
+
+return_t Tabstrrestalt(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	priormatches.clear();
+
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches, flag);
+	};
+	
+	switch (flag["outter"_h]) if (0);
+	else if (0) {
+	case "params"_h:
+		++recording;
+		doit("identifier_decl");
+		if (call(abstrsubs)) {
+			--recording;
+			replay(currrecord);
+			while (call(abstrsubs));
+			return { true, currrecord };
+		}
+		currrecord.pop_back();
+		--recording;
+		if (!call(Tinside)) {
+			return { false, currrecord };
+		}
+
+		while (call(abstrsubs));
+		return { true, currrecord };
+	}
+	else if (0) {
+	case "normal"_h:
+		if (!call(Tinside)) {
+			return { false, currrecord };
+		}
+
+		while (call(abstrsubs));
+		return { true, currrecord };
+	}
+	else if (0) {
+	case "optional"_h:
+		if (!call(Tinside)) {
+			if (call(abstrsubs)) while (call(abstrsubs));
+			else return { false, currrecord };
+			return { true, currrecord };
+		}
+
+		while (call(abstrsubs));
+		return { true, currrecord };
+	}
+
+	assert(0);  "invocation without proper set flag!";
+}
+
+return_t identifierminedecl(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	priormatches.clear();
+	consumewhitespace();
+
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	if (call(identifier)) {
+
+		doit("identifier_decl");
+		consumewhitespace();
+
+		return { true, currrecord };
+	}
+
+	return { false, currrecord };
 }
 
 return_t abstdecl(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
@@ -508,6 +602,11 @@ return_t abstdecl(std::unordered_map<unsigned, std::string> priormatches, std::u
 			return what(priormatches, flag).handle(priormatches, currrecord);
 	};
 
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches, flag);
+	};
+
 	const std::string stdcallliteral = "__stdcall";
 	if (std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral) {
 
@@ -519,11 +618,16 @@ return_t abstdecl(std::unordered_map<unsigned, std::string> priormatches, std::u
 
 		consumewhitespace();
 	}
-}
 
-return_t abstrmostoutterparams(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
-return_t abstrmostoutter(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
-return_t abstrmostoutteropt(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
+	if (!call(abstrptrrev)) {
+		return callfwd(Tabstrrestalt);
+	}
+	else {
+		return { true, currrecord };
+	}
+
+	return { false, currrecord };
+}
 
 
 return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
@@ -537,21 +641,49 @@ return_t Tinside(std::unordered_map<unsigned, std::string> priormatches, std::un
 
 	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag),
 		std::unordered_map<unsigned, std::string> priormatches = {}) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag),
+		std::unordered_map<unsigned, std::string> priormatches = {}) {
 			return what(priormatches, flag);
 	};
 
 	switch (flag["outter"_h]) if (0);
 	else if (0) {
 	case "params"_h:
-		return call(abstrmostoutterparams);
+		if (*currlexing == '(') {
+			call(abstdecl);
+			assert(*currlexing == ')');
+		}
+		else {
+			if (!call(identifierminedecl)) {
+				doit("identifier_decl");
+			}
+		}
+
+		return { true, currrecord };
 	}
 	else if (0) {
 	case "normal"_h:
-		return call(abstrmostoutter);
+		if (*currlexing == '(') {
+			call(abstdecl);
+			assert(*currlexing == ')');
+			return { true, currrecord };
+		}
+		else {
+			return callfwd(identifierminedecl);
+		}
 	}
 	else if (0) {
 	case "optional"_h:
-		return call(abstrmostoutteropt);
+		if (*currlexing == '(') {
+			call(abstdecl);
+			assert(*currlexing == ')');
+			return { true, currrecord };
+		}
+		
+		return { true, currrecord };
 	}
 
 	assert(0);  "invocation without proper set flag!";
