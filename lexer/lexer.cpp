@@ -388,6 +388,16 @@ bool isonboundary(std::string::iterator what = currlexing) {
 	return (isalnum(what[-1]) || what[-1] == '_') != (isalnum(what[0]) || what[0] == '_');
 }
 
+bool isonboundary(std::string what) {
+	if (isonboundary() &&
+		std::string{ currlexing , currlexing + what.length() } == what &&
+		isonboundary(currlexing + what.length())) {
+		currlexing += what.length();
+		return true;
+	}
+	return false;
+}
+
 return_t identifier(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
 	consumewhitespace();
 
@@ -517,14 +527,8 @@ return_t abstrptrrev(std::unordered_map<unsigned, std::string> priormatches, std
 	if (*currlexing == '*') {
 		currlexing++;
 		consumewhitespace();
-		const std::string stdcallliteral = "__stdcall";
-		if (isonboundary() && 
-			std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral &&
-			isonboundary(currlexing + stdcallliteral.length())) {
-
-			currlexing += stdcallliteral.length();
-
-			priormatches["callconv"_h] = stdcallliteral;
+		if (isonboundary("__stdcall")) {
+			priormatches["callconv"_h] = "__stdcall";
 
 			doit("setcallconv");
 
@@ -733,13 +737,9 @@ return_t abstdecl(std::unordered_map<unsigned, std::string> priormatches, std::u
 			return what(priormatches, flag);
 	};
 
-	const std::string stdcallliteral = "__stdcall";
-	if (isonboundary() &&
-		std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral &&
-		isonboundary(currlexing + stdcallliteral.length())) {
-		currlexing += stdcallliteral.length();
+	if (isonboundary("__stdcall")) {
 
-		priormatches["callconv"_h] = stdcallliteral;
+		priormatches["callconv"_h] = "__stdcall";
 
 		doit("setcallconv");
 
@@ -860,8 +860,7 @@ return_t abstrsubs(std::unordered_map<unsigned, std::string> priormatches, std::
 			currlexing += 3;
 			goto noparams;
 		}
-		else if (isonboundary() && std::string{ currlexing , currlexing + 4 } == "void" && isonboundary(currlexing + 4)) {
-			currlexing += 4;
+		else if (isonboundary("void")) {
 			goto noparams;
 		}
 
@@ -936,14 +935,9 @@ return_t typedefkey(std::unordered_map<unsigned, std::string> priormatches, std:
 			return what(priormatches, flag).handle(priormatches, currrecord);
 	};
 
-	const std::string typedefkeyliteral = "typedef";
-	if (isonboundary() &&
-		std::string{ currlexing , currlexing + typedefkeyliteral.length() } == typedefkeyliteral &&
-		isonboundary(currlexing + typedefkeyliteral.length())) {
+	if (isonboundary("typedef")) {
 
-		currlexing += typedefkeyliteral.length();
-
-		priormatches["typedefkey"_h] = typedefkeyliteral;
+		priormatches["typedefkey"_h] = "typedef";
 
 		consumewhitespace();
 
@@ -1044,29 +1038,16 @@ return_t structorunion(std::unordered_map<unsigned, std::string> priormatches, s
 		return { false };
 	}
 
-	const std::string strucliteral = "struct";
-	const std::string unionliteral = "union";
-	const std::string enumliteral = "enum";
-
 	bool isenum = false;
 
-	if (isonboundary() &&
-		std::string{ currlexing , currlexing + unionliteral.length() } == unionliteral &&
-		isonboundary(currlexing + unionliteral.length())) {
-		currlexing += unionliteral.length();
-		priormatches["structorunionlast"_h] = unionliteral;
+	if (isonboundary("union")) {
+		priormatches["structorunionlast"_h] = "union";
 	}
-	else if (isonboundary() &&
-		std::string{ currlexing , currlexing + strucliteral.length() } == strucliteral &&
-		isonboundary(currlexing + strucliteral.length())) {
-		currlexing += strucliteral.length();
-		priormatches["structorunionlast"_h] = strucliteral;
+	else if (isonboundary("struct")) {
+		priormatches["structorunionlast"_h] = "struct";
 	}
-	else if (isonboundary() &&
-		std::string{ currlexing , currlexing + enumliteral.length() } == enumliteral &&
-		isonboundary(currlexing + enumliteral.length())) {
-		currlexing += enumliteral.length();
-		priormatches["enum"_h] = enumliteral;
+	else if (isonboundary("enum")) {
+		priormatches["enum"_h] = "enum";
 		isenum = true;
 	}
 
@@ -1638,12 +1619,7 @@ return_t unary(std::unordered_map<unsigned, std::string> priormatches, std::unor
 		return { true, currrecord };
 	}
 
-	const std::string sizeofkey = "sizeof";
-
-	if (isonboundary() && 
-		std::string{ currlexing, currlexing + sizeofkey.length() } == sizeofkey
-		&& isonboundary(currlexing + sizeofkey.length())) {
-		currlexing + sizeofkey.length();
+	if (isonboundary("sizeof")) {
 		if (call(typename_)) {
 			doit("endsizeoftypename");
 		}
@@ -1747,4 +1723,30 @@ return_t typenamerev(std::unordered_map<unsigned, std::string> priormatches, std
 	--recording;
 
 	return { false };
+}
+
+return_t assignorsomething(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	++recording;
+	if (call(unaryexpr)) {
+		if(ranges::contains(std::array{ "*="_h, "/="_h, "%="_h, "+="_h, "-="_h, "<<="_h, ">>="_h, "&="_h, "^="_h, "|="_h },
+			stringhash(std::string{ currlexing, currlexing + 2 }.c_str())))
+	}
 }
