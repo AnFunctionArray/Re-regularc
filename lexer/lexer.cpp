@@ -384,10 +384,14 @@ success:
 	}
 }
 
+bool isonboundary(std::string::iterator what = currlexing) {
+	return (isalnum(what[-1]) || what[-1] == '_') != (isalnum(what[0]) || what[0] == '_');
+}
+
 return_t identifier(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
 	consumewhitespace();
 
-	if (isalpha(*currlexing) || *currlexing == '_') {
+	if (isonboundary() && (isalpha(*currlexing) || *currlexing == '_')) {
 		auto beg = currlexing;
 		++currlexing;
 		while (isalnum(*currlexing) || *currlexing == '_') ++currlexing;
@@ -514,7 +518,9 @@ return_t abstrptrrev(std::unordered_map<unsigned, std::string> priormatches, std
 		currlexing++;
 		consumewhitespace();
 		const std::string stdcallliteral = "__stdcall";
-		if (std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral) {
+		if (isonboundary() && 
+			std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral &&
+			isonboundary(currlexing + stdcallliteral.length())) {
 
 			currlexing += stdcallliteral.length();
 
@@ -700,8 +706,9 @@ return_t abstdecl(std::unordered_map<unsigned, std::string> priormatches, std::u
 	};
 
 	const std::string stdcallliteral = "__stdcall";
-	if (std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral) {
-
+	if (isonboundary() &&
+		std::string{ currlexing , currlexing + stdcallliteral.length() } == stdcallliteral &&
+		isonboundary(currlexing + stdcallliteral.length())) {
 		currlexing += stdcallliteral.length();
 
 		priormatches["callconv"_h] = stdcallliteral;
@@ -818,7 +825,7 @@ return_t abstrsubs(std::unordered_map<unsigned, std::string> priormatches, std::
 			currlexing += 3;
 			goto noparams;
 		}
-		else if (std::string{ currlexing , currlexing + 4 } == "void") {
+		else if (isonboundary() && std::string{ currlexing , currlexing + 4 } == "void" && isonboundary(currlexing + 4)) {
 			currlexing += 4;
 			goto noparams;
 		}
@@ -895,7 +902,9 @@ return_t typedefkey(std::unordered_map<unsigned, std::string> priormatches, std:
 	};
 
 	const std::string typedefkeyliteral = "typedef";
-	if (std::string{ currlexing , currlexing + typedefkeyliteral.length() } == typedefkeyliteral) {
+	if (isonboundary() &&
+		std::string{ currlexing , currlexing + typedefkeyliteral.length() } == typedefkeyliteral &&
+		isonboundary(currlexing + typedefkeyliteral.length())) {
 
 		currlexing += typedefkeyliteral.length();
 
@@ -909,12 +918,290 @@ return_t typedefkey(std::unordered_map<unsigned, std::string> priormatches, std:
 	return { false, currrecord };
 }
 
-return_t abstdeclorallqualifs(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+return_t assignorsomething(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag);
 
+return_t enumerator(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (call(identifier)) {
+		doit("add_ident_to_enum_def");
+		if (*currlexing == '=') {
+			doit("beginconstantexpr");
+			call(assignorsomething);
+			doit("end_ass_to_enum_def");
+		}
+		else {
+			doit("end_without_ass_to_enum_def");
+		}
+
+		return { true, currrecord };
+	}
+
+	return { false };
+}
+
+return_t strcelem(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	priormatches.clear();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	flag["optinit"_h] = "bitfl"_h;
+	flag["outter"_h] = "normal"_h;
+	flag["opt"_h] = false;
+
+	if (auto res = callfwd(abstdeclorallqualifs); res.result) {
+		consumewhitespace();
+		assert(*currlexing == ';');
+		++currlexing;
+		consumewhitespace();
+		return res;
+	}
+	return { false };
+}
+
+return_t structorunion(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (priormatches.contains("structorunionlast"_h) || priormatches.contains("enum"_h)) {
+		return { false, currrecord };
+	}
+
+	const std::string strucliteral = "struct";
+	const std::string unionliteral = "union";
+	const std::string enumliteral = "enum";
+
+	bool isenum = false;
+
+	if (isonboundary() &&
+		std::string{ currlexing , currlexing + unionliteral.length() } == unionliteral &&
+		isonboundary(currlexing + unionliteral.length())) {
+		currlexing += unionliteral.length();
+		priormatches["structorunionlast"_h] = unionliteral;
+	}
+	else if (isonboundary() &&
+		std::string{ currlexing , currlexing + strucliteral.length() } == strucliteral &&
+		isonboundary(currlexing + strucliteral.length())) {
+		currlexing += strucliteral.length();
+		priormatches["structorunionlast"_h] = strucliteral;
+	}
+	else if (isonboundary() &&
+		std::string{ currlexing , currlexing + enumliteral.length() } == enumliteral &&
+		isonboundary(currlexing + enumliteral.length())) {
+		currlexing += enumliteral.length();
+		priormatches["enum"_h] = enumliteral;
+		isenum = true;
+	}
+
+	consumewhitespace();
+
+	auto last = currlexing;
+
+	bool hastag = true;
+
+	if (call(identifier) && !isidentkeyword(priormatches["ident"_h])) {
+		consumewhitespace();
+		priormatches["lasttag"_h] = std::move(priormatches["ident"_h]);
+	}
+	else {
+		hastag = false;
+		currlexing = last;
+	}
+
+	if (*currlexing == '{') {
+		++currlexing;
+		consumewhitespace();
+
+		size_t oldrecord = recording;
+
+		recording = 0;
+
+		if (isenum) {
+			if (call(enumerator)) {
+				if (*currlexing == ',') {
+					while (call(enumerator) && *currlexing == ',')
+						++currlexing;
+				}
+			}
+
+			consumewhitespace();
+
+			assert(*currlexing == '}');
+
+			currlexing++;
+
+			recording = oldrecord;
+
+			return { true };
+		}
+		else {
+			doit("struc_or_union_body");
+
+			while (call(strcelem));
+
+			consumewhitespace();
+
+			assert(*currlexing == '}');
+
+			doit("endbuildingstructorunion");
+
+			currlexing++;
+
+			recording = oldrecord;
+
+			return { true, {},  priormatches };
+		}
+	}
+
+	if (!hastag) {
+
+		return { false, currrecord };
+	}
+
+	return { true, {},  priormatches };
+}
+
+return_t abstdeclorallqualifsqualifs(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	if (auto res = callfwd(qualifiersortypeidentifier); res.result) {
+		return res;
+	}
+
+	if (!priormatches.contains("qualiffound"_h) && !priormatches.contains("typefound"_h)) {
+
+		if (auto res = callfwd(structorunion); res.result) {
+			return res;
+		}
+		else if (auto res = callfwd(identifier_typedef); res.result) {
+			return res;
+		}
+	}
+
+	if (auto res = callfwd(typedefkey); res.result) {
+		return res;
+	}
+
+	return { false };
+}
+
+return_t abstdeclorallqualifs(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
+	consumewhitespace();
+	record currrecord;
+
+	auto doit = [&](std::string what) {
+		::doit(what, (void*)&priormatches, currrecord);
+	};
+
+	auto call = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag).handle(priormatches, currrecord);
+	};
+
+	auto callfwd = [&](return_t what(std::unordered_map<unsigned, std::string>, std::unordered_map<unsigned, unsigned> flag)
+		) {
+			return what(priormatches, flag);
+	};
+
+	++recording;
+	
+	if (flag["opt"_h]) goto startwhile;
+
+	if (call(abstdeclorallqualifsqualifs)) {
+	startwhile:
+		while (call(abstdeclorallqualifsqualifs));
+	}
+	else {
+		--recording;
+		return { false, currrecord };
+	}
+
+	auto qualifrecord = currrecord;
+
+	currrecord.clear();
+
+	--recording;
+
+	if (call(abstdecl)) {
+		do {
+			doit("enddeclaration");
+			replay(qualifrecord);
+			doit("endqualifs");
+			if (*currlexing != ',' || flag["outter"_h] == "params"_h) break;
+			++currlexing;
+		} while (call(abstdecl));
+
+		return { true, currrecord };
+	}
+	else if (priormatches.contains("structorunionlast"_h)) {
+		doit("check_stray_struc");
+		return { true, currrecord };
+	}
+	else if (priormatches.contains("enum"_h)) {
+		return { true, currrecord };
+	}
+
+	return { false, currrecord };
 }
 
 return_t param(std::unordered_map<unsigned, std::string> priormatches, std::unordered_map<unsigned, unsigned> flag) {
-
+	priormatches.clear();
 	record currrecord;
 
 	auto doit = [&](std::string what) {
@@ -933,4 +1220,6 @@ return_t param(std::unordered_map<unsigned, std::string> priormatches, std::unor
 
 	flag["outter"_h] = "params"_h;
 	flag["opt"_h] = false;
+
+	return callfwd(abstdeclorallqualifs);
 }
