@@ -1169,7 +1169,56 @@ return_t param(arg_clear_t ctx) {
 	ctx.flags["opt"_h] = false;
 	ctx.flags["optinit"_h] = "none"_h;
 
-	ctx.call(abstdeclorallqualifs);
+	if(ctx.call(abstdeclorallqualifs))
+		return ctx;
+	return !ctx;
+}
+
+return_t decl(arg_clear_t ctx) {
+
+	ctx.flags["outter"_h] = "normal"_h;
+	ctx.flags["opt"_h] = false;
+	ctx.flags["optinit"_h] = "init"_h;
+
+	if (ctx.call(abstdeclorallqualifs)) {
+
+		assert(*currlexing == ';');
+
+		ctx.doit("endfulldecl");
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t declopt(arg_clear_t ctx) {
+
+	ctx.flags["outter"_h] = "normal"_h;
+	ctx.flags["opt"_h] = true;
+	ctx.flags["optinit"_h] = "init"_h;
+
+	if (ctx.call(abstdeclorallqualifs)) {
+
+		if (*currlexing == ';') {
+			ctx.doit("endfulldecl");
+			consumewhitespace();
+		}
+		else {
+			assert(ctx.call(compoundstatement));
+		}
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t cprogram(arg_clear_t ctx) {
+	while (ctx.call(declopt));
+	
 	return ctx;
 }
 
@@ -1324,7 +1373,7 @@ return_t unaryexpr(arg_clear_t ctx) {
 		return ctx;
 	}
 	else {
-		return ctx.call(unary), ctx;
+		return ctx.call(unary) ? ctx : !ctx;
 	}
 }
 
@@ -1334,7 +1383,7 @@ return_t castexpr(arg_clear_t ctx) {
 		return ctx;
 	}
 	else {
-		return ctx.call(unary), ctx;
+		return ctx.call(unary) ? ctx : !ctx;
 	}
 }
 
@@ -1604,10 +1653,10 @@ assignrest:
 			return ctx;
 		}
 
-		return ctx.call(ternarylogicopt), ctx;
+		return ctx.call(ternarylogicopt) ? ctx : !ctx;
 	}
 	else if (ctx.call(typenamerev)) {
-		return ctx.call(ternarylogicopt), ctx;
+		return ctx.call(ternarylogicopt) ? ctx : !ctx;
 	}
 
 	--recording;
@@ -1615,4 +1664,354 @@ assignrest:
 	ctx.record.splice(++ctx.record.begin(), lastrec);
 
 	return !ctx;
+}
+
+return_t jumpstatement(arg_clear_t ctx) {
+	consumewhitespace();
+
+	auto last = currlexing;
+
+	if (ctx.call(identifier)) switch (stringhash(ctx.matches["ident"_h].c_str())) if (0);
+	else if (0) {
+	case "goto"_h:
+		ctx.call(identifier);
+
+		ctx.matches["gtid"_h] = std::move(ctx.matches["ident"_h]);
+
+		ctx.doit("gotolabel");
+
+		assert(*currlexing == ';');
+
+		++currlexing;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+	else if (0) {
+	case "break"_h:
+
+		ctx.doit("addbreak");
+
+		assert(*currlexing == ';');
+
+		++currlexing;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+	else if (0) {
+	case "return"_h:
+		
+		ctx.call(primexprnormal);
+
+		ctx.doit("endreturn");
+
+		assert(*currlexing == ';');
+
+		++currlexing;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	currlexing = last;
+
+	return !ctx;
+}
+
+return_t iterationstatement(arg_clear_t ctx) {
+	consumewhitespace();
+
+	auto last = currlexing;
+
+	if (ctx.call(identifier)) switch (stringhash(ctx.matches["ident"_h].c_str())) if (0);
+	else if (0) {
+	case "while"_h:
+		
+		consumewhitespace();
+
+		assert(*currlexing == '(');
+
+		++currlexing;
+
+		ctx.doit("startforloopcond");
+
+		assert(ctx.call(primexprnormal));
+
+		assert(*currlexing == ')');
+
+		++currlexing;
+
+		ctx.doit("endforloopcond");
+
+		ctx.doit("addforloopiter");
+
+		assert(ctx.call(statement));
+
+		ctx.doit("endforloop");
+
+		return ctx;
+	}
+	else if (0) {
+	case "do"_h:
+
+		ctx.doit("startdowhileloop");
+
+		consumewhitespace();
+
+		assert(ctx.call(statement));
+
+		consumewhitespace();
+
+		ctx.call(identifier);
+
+		assert(ctx.matches["ident"_h] == "while");
+
+		consumewhitespace();
+
+		assert(*currlexing == '(');
+
+		++currlexing;
+
+		assert(ctx.call(primexprnormal));
+
+		assert(*currlexing == ')');
+
+		++currlexing;
+
+		consumewhitespace();
+
+		assert(*currlexing == ';');
+
+		++currlexing;
+
+		ctx.doit("enddowhileloop");
+
+		consumewhitespace();
+
+		return ctx;
+	}
+	else if (0) {
+	case "for"_h:
+
+		consumewhitespace();
+
+		assert(*currlexing == '(');
+
+		++currlexing;
+
+		if (ctx.call(decl));
+		else (ctx.call(exprstatement));
+
+		ctx.doit("startforloopcond");
+
+		ctx.call(primexprnormal);
+
+		consumewhitespace();
+
+		assert(*currlexing == ';');
+
+		++currlexing;
+
+		ctx.doit("endforloopcond");
+
+		ctx.call(primexprnormal);
+
+		consumewhitespace();
+
+		ctx.doit("addforloopiter");
+
+		assert(*currlexing == ')');
+
+		++currlexing;
+
+		assert(ctx.call(statement));
+
+		ctx.doit("endforloop");
+
+		return ctx;
+	}
+
+	currlexing = last;
+
+	return !ctx;
+}
+
+return_t exprstatement(arg_clear_t ctx) {
+	ctx.call(primexprnormal);
+
+	if (*currlexing == ';') {
+		++currlexing;
+		ctx.doit("endexpression");
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t compoundstatement(arg_clear_t ctx) {
+	consumewhitespace();
+
+	if (*currlexing == '{') {
+		++currlexing;
+		ctx.doit("beginscope");
+
+		while (ctx.call(decl) || ctx.call(statement));
+
+		consumewhitespace();
+
+		assert(*currlexing == '}');
+
+		++currlexing;
+
+		ctx.doit("endscope");
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t selectionstatement(arg_clear_t ctx) {
+	consumewhitespace();
+
+	auto last = currlexing;
+
+	if (ctx.call(identifier)) switch (stringhash(ctx.matches["ident"_h].c_str())) if (0);
+	else if (0) {
+	case "if"_h:
+
+		consumewhitespace();
+
+		assert(*currlexing == '(');
+
+		++currlexing;
+
+		assert(ctx.call(primexprnormal));
+
+		assert(*currlexing == ')');
+
+		++currlexing;
+
+		ctx.doit("startifstatement");
+
+		ctx.call(statement);
+
+		auto lastlast = currlexing;
+
+		if (ctx.call(identifier) && ctx.matches["ident"_h] == "else") {
+			ctx.doit("continueifstatement");
+
+			ctx.call(statement);
+		}
+		else {
+			currlexing = lastlast;
+		}
+
+		ctx.doit("endifstatement");
+
+		return ctx;
+	}
+	else if (0) {
+	case "switch"_h:
+
+		consumewhitespace();
+
+		assert(*currlexing == '(');
+
+		++currlexing;
+
+		assert(ctx.call(primexprnormal));
+
+		assert(*currlexing == ')');
+
+		++currlexing;
+
+		ctx.doit("startswitch");
+
+		ctx.call(statement);
+
+		ctx.doit("endswitch");
+
+		return ctx;
+	}
+
+	currlexing = last;
+
+	return !ctx;
+}
+
+return_t label(arg_clear_t ctx) {
+	auto last = currlexing;
+
+	if (ctx.call(identifier)) switch (stringhash(ctx.matches["ident"_h].c_str())) if (0);
+	else if (0) {
+	default:
+
+		if (!isidentkeyword(ctx.matches["ident"_h]) && *currlexing == ':') {
+			++currlexing;
+			ctx.matches["lbl"_h] = std::move(ctx.matches["ident"_h]);
+			ctx.doit("splitbb");
+			consumewhitespace();
+			return ctx;
+		}
+
+		currlexing = last;
+
+		return !ctx;
+	}
+	else if (0) {
+	case "case"_h:
+
+		ctx.doit("beginconstantexpr");
+
+		ctx.call(primexprnormal);
+
+		assert(*currlexing == ':');
+
+		++currlexing;
+
+		ctx.doit("addCase");
+
+		ctx.doit("endconstantexpr");
+
+		consumewhitespace();
+
+		return ctx;
+	}
+	else if (0) {
+	case "default"_h:
+
+		assert(*currlexing == ':');
+
+		++currlexing;
+
+		ctx.doit("addDefaultCase");
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	currlexing = last;
+
+	return !ctx;
+}
+
+return_t statement(arg_clear_t ctx) {
+	while (ctx.call(label));
+
+	return ctx.call(statementinner) ? ctx : !ctx;
+}
+
+return_t statementinner(arg_clear_t ctx) {
+
+	return ctx.call(exprstatement) || ctx.call(compoundstatement) || ctx.call(selectionstatement) || ctx.call(iterationstatement) || ctx.call(jumpstatement) ? ctx : !ctx;
 }
