@@ -96,7 +96,8 @@ struct ctx : ctxprops {
 	std::unordered_map<unsigned, std::string> matches;
 	std::unordered_map<unsigned, unsigned> flags;
 
-	bool call(auto what) {
+	template<typename argT>
+	bool call(argT what) {
 		auto res = what(*this);
 
 		if(res.result)
@@ -135,6 +136,19 @@ struct return_t : ctx {
 	}
 };
 
+struct arg_clear_t : ctx {
+	arg_clear_t(const ctx& arg) {
+		flags = arg.flags;
+		record = arg.record;
+	}
+};
+
+template<>
+bool ctx::call(arg_clear_t what);
+
+template<>
+bool ctx::call(ctx what);
+
 void doit(std::string fnname, void* phashmap, record &refrecord) {
 
 	if (recording) {
@@ -160,7 +174,7 @@ bool consumewhitespace() {
 	return true;
 }
 
-return_t escape(ctx ctx) {
+return_t escape(arg_clear_t ctx) {
 
 	if (*currlexing == '\\') {
 		auto begin = ++currlexing;
@@ -192,7 +206,7 @@ return_t escape(ctx ctx) {
 	return !ctx;
 }
 
-return_t stringlit(ctx ctx) {
+return_t stringlit(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if (ranges::contains(std::array{ '\'', '\"' }, *currlexing)) {
@@ -228,7 +242,7 @@ return_t stringlit(ctx ctx) {
 				currlexing++;
 			}
 		}
-		doit("add_literal");
+		ctx.doit("add_literal");
 		consumewhitespace();
 		return ctx;
 	}
@@ -236,7 +250,7 @@ return_t stringlit(ctx ctx) {
 	return !ctx;
 }
 
-return_t numberliteral(ctx ctx) {
+return_t numberliteral(arg_clear_t ctx) {
 	consumewhitespace();
 	
 	switch (stringhash(std::string{ currlexing, currlexing + 1 }.c_str())) if (0);
@@ -296,11 +310,11 @@ return_t numberliteral(ctx ctx) {
 			ctx.matches["lng"_h] = std::string{ beg , currlexing };
 		}
 
-		doit("num_lit");
+		ctx.doit("num_lit");
 
 		consumewhitespace();
 
-		return !ctx;
+		return ctx;
 	}
 }
 
@@ -323,7 +337,7 @@ return_t exponent(ctx ctx) {
 	return !ctx;
 }
 
-return_t floating(ctx ctx) {
+return_t floating(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if(*currlexing == '.') 
@@ -386,6 +400,7 @@ bool isonboundary(std::string what) {
 
 return_t identifier(ctx ctx) {
 	consumewhitespace();
+	(ctxprops)ctx = { false, true, false };
 
 	if (isonboundary() && (isalpha(*currlexing) || *currlexing == '_')) {
 		auto beg = currlexing;
@@ -448,7 +463,7 @@ return_t qualifiersortypeidentifier(ctx ctx) {
 		case "static"_h:
 		case "register"_h:
 			ctx.matches["qualiffound"_h] = std::move(ctx.matches["ident"_h]);
-			doit("add_qualif");
+			ctx.doit("add_qualif");
 			consumewhitespace();
 
 			return ctx;
@@ -487,7 +502,7 @@ return_t abstrptrrev(ctx ctx) {
 		if (isonboundary("__stdcall")) {
 			ctx.matches["callconv"_h] = "__stdcall";
 
-			doit("setcallconv");
+			ctx.doit("setcallconv");
 
 			consumewhitespace();
 		}
@@ -510,7 +525,11 @@ return_t abstrptrrev(ctx ctx) {
 			while (ctx.call(abstrsubs));
 			ctx.doit("addptrtotype");
 		}
+
+		return ctx;
 	}
+
+	return !ctx;
 }
 
 return_t Tabstrrestalt(ctx ctx) {
@@ -605,7 +624,7 @@ return_t identifierminedecl(ctx ctx) {
 	auto last = currlexing;
 
 	if (ctx.call(identifier) && !isidentkeyword(ctx.matches["ident"_h])) {
-		doit("identifier_decl");
+		ctx.doit("identifier_decl");
 		consumewhitespace();
 
 		if (ctx.flags["optinit"_h] != "bitfl"_h) {
@@ -655,7 +674,7 @@ return_t abstdecl(ctx ctx) {
 		return ctx;
 	}
 
-	return ctx;
+	return !ctx;
 }
 
 
@@ -690,8 +709,9 @@ return_t Tinside(ctx ctx) {
 			return ctx;
 		}
 		else {
-			ctx.call(identifierminedecl);
-			return ctx;
+			if(ctx.call(identifierminedecl))
+				return ctx;
+			return !ctx;
 		}
 	}
 	else if (0) {
@@ -704,23 +724,48 @@ return_t Tinside(ctx ctx) {
 			return ctx;
 		}
 		
-		return ctx;
+		return !ctx;
 	}
 
 	assert(0);  "invocation without proper set flag!";
 }
 
-return_t primexpr(ctx ctx);
-return_t primexprcall(ctx ctx);
-return_t param(ctx ctx);
+return_t primexpr(arg_clear_t ctx) {
+
+	if (ctx.call(assignorsomething)) {
+
+		while (*currlexing == ',') {
+			if (ctx.flags["primexpr"_h] != "call"_h) {
+				ctx.doit("comma");
+			}
+			assert(ctx.call(assignorsomething));
+		}
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t primexprnormal(arg_clear_t ctx) {
+	ctx.flags["primexpr"_h] = "normal"_h;
+
+	return ctx.call(primexpr) ? ctx : !ctx;
+}
+return_t primexprcall(ctx ctx) {
+	ctx.flags["primexpr"_h] = "call"_h;
+
+	return ctx.call(primexpr) ? ctx : !ctx;
+}
+return_t param(arg_clear_t ctx);
 
 return_t abstrsubs(ctx ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '[') {
 		++currlexing;
-		doit("beginconstantexpr");
-		ctx.call(primexpr);
+		ctx.doit("beginconstantexpr");
+		ctx.call(primexprnormal);
 		assert(*currlexing == ']');
 		++currlexing;
 		ctx.doit("addsubtotype");
@@ -757,7 +802,7 @@ return_t abstrsubs(ctx ctx) {
 
 			++currlexing;
 
-			doit("endfunctionparamdecl");
+			ctx.doit("endfunctionparamdecl");
 
 			consumewhitespace();
 
@@ -807,7 +852,7 @@ return_t typedefkey(ctx ctx) {
 	return !ctx;
 }
 
-return_t assignorsomething(ctx ctx);
+return_t assignorsomething(arg_clear_t ctx);
 
 return_t enumerator(ctx ctx) {
 	consumewhitespace();
@@ -829,8 +874,7 @@ return_t enumerator(ctx ctx) {
 	return !ctx;
 }
 
-return_t strcelem(ctx ctx) {
-	ctx.matches.clear();
+return_t strcelem(arg_clear_t ctx) {
 
 	ctx.flags["optinit"_h] = "bitfl"_h;
 	ctx.flags["outter"_h] = "normal"_h;
@@ -862,6 +906,9 @@ return_t structorunion(ctx ctx) {
 	else if (isonboundary("enum")) {
 		ctx.matches["enum"_h] = "enum";
 		isenum = true;
+	}
+	else {
+		return !ctx;
 	}
 
 	consumewhitespace();
@@ -907,13 +954,13 @@ return_t structorunion(ctx ctx) {
 		}
 		else {
 
-			doit("struc_or_union_body");
+			ctx.doit("struc_or_union_body");
 
 			while (ctx.call(strcelem));
 
 			assert(*currlexing == '}');
 
-			doit("endbuildingstructorunion");
+			ctx.doit("endbuildingstructorunion");
 
 			currlexing++;
 
@@ -936,6 +983,8 @@ return_t structorunion(ctx ctx) {
 return_t abstdeclorallqualifsqualifs(ctx ctx) {
 	record currrecord;
 
+	(ctxprops)ctx = { false, true, false };
+
 	if (!ctx.matches.contains("qualiffound"_h) && !ctx.matches.contains("typefound"_h)) {
 
 		if (ctx.call(structorunion)) {
@@ -953,7 +1002,7 @@ return_t abstdeclorallqualifsqualifs(ctx ctx) {
 	return !ctx;
 }
 
-return_t abstrbitfield(ctx ctx) {
+return_t abstrbitfield(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if (*currlexing == ':') {
@@ -969,7 +1018,7 @@ return_t abstrbitfield(ctx ctx) {
 	return !ctx;
 }
 
-return_t designator(ctx ctx) {
+return_t designator(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '[') {
@@ -996,7 +1045,7 @@ return_t designator(ctx ctx) {
 	return !ctx;
 }
 
-return_t initializer(ctx ctx) {
+return_t initializer(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if (ctx.call(assignorsomething)) {
@@ -1030,7 +1079,7 @@ return_t initializer(ctx ctx) {
 	return !ctx;
 }
 
-return_t abstrinitialization(ctx ctx) {
+return_t abstrinitialization(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '=') {
@@ -1046,7 +1095,7 @@ return_t abstrinitialization(ctx ctx) {
 	return !ctx;
 }
 
-return_t optinit(ctx ctx) {
+return_t optinit(arg_clear_t ctx) {
 
 	switch (ctx.flags["optinit"_h]) if (0);
 	else if (0) {
@@ -1063,7 +1112,7 @@ return_t optinit(ctx ctx) {
 	return !ctx;
 }
 
-return_t abstdeclorallqualifs(ctx ctx) {
+return_t abstdeclorallqualifs(arg_clear_t ctx) {
 	consumewhitespace();
 
 	++recording;
@@ -1114,8 +1163,7 @@ startdowhile:
 	return !ctx;
 }
 
-return_t param(ctx ctx) {
-	ctx.matches.clear();
+return_t param(arg_clear_t ctx) {
 
 	ctx.flags["outter"_h] = "params"_h;
 	ctx.flags["opt"_h] = false;
@@ -1125,20 +1173,34 @@ return_t param(ctx ctx) {
 	return ctx;
 }
 
-return_t typename_(ctx ctx) {
+return_t typename_(arg_clear_t ctx) {
 	consumewhitespace();
 
 	ctx.flags["outter"_h] = "optional"_h;
 	ctx.flags["opt"_h] = false;
 	ctx.flags["optinit"_h] = "none"_h;
 
-	ctx.call(abstdeclorallqualifs);
-	return ctx;
+	if (*currlexing == '(') {
+
+		++currlexing;
+
+		consumewhitespace();
+
+		ctx.call(abstdeclorallqualifs);
+
+		consumewhitespace();
+
+		assert(*currlexing == ')');
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	return !ctx;
 }
 
-return_t inner(ctx ctx) {
-	consumewhitespace();
-	ctx.matches.clear();
+return_t inner(arg_clear_t ctx) {
 
 	if(ctx.call(stringlit) || ctx.call(floating) || ctx.call(numberliteral) || ctx.call(numberliteral) || ctx.call(ident))
 
@@ -1147,12 +1209,12 @@ return_t inner(ctx ctx) {
 	return !ctx;
 }
 
-return_t inparenths(ctx ctx) {
+return_t inparenths(arg_clear_t ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '(') {
 		++currlexing;
-		ctx.call(primexpr);
+		ctx.call(primexprnormal);
 		assert(*currlexing == ')');
 		++currlexing;
 		consumewhitespace();
@@ -1162,14 +1224,13 @@ return_t inparenths(ctx ctx) {
 	return !ctx;
 }
 
-return_t postfix(ctx ctx) {
+return_t postfix(arg_clear_t ctx) {
 	consumewhitespace();
-	ctx.matches.clear();
 
 	switch (*currlexing) if (0);
 	else if (0) {
 	case '[':
-		ctx.call(primexpr);
+		ctx.call(primexprnormal);
 		assert(*currlexing == ']');
 		ctx.doit("subscript");
 		++currlexing;
@@ -1198,30 +1259,29 @@ return_t postfix(ctx ctx) {
 	memberaccess:
 		ctx.call(identifier);
 		ctx.doit("memberaccess");
-
+		consumewhitespace();
 		return ctx;
 	}
 	else if (ranges::contains(std::array{ "++"_h, "--"_h }, stringhash(std::string{ currlexing, currlexing + 2 }.c_str()))) {
 		ctx.matches["postfixarithraw"_h] = std::string{ currlexing, currlexing + 2 };
 		currlexing += 2;
 		ctx.doit("unaryincdec");
-
+		consumewhitespace();
 		return ctx;
 	}
 
 	return !ctx;
 }
 
-return_t unary(ctx ctx) {
+return_t unary(arg_clear_t ctx) {
 	consumewhitespace();
-	ctx.matches.clear();
 
 	if (ranges::contains(std::array{ "++"_h, "--"_h }, stringhash(std::string{ currlexing, currlexing + 2 }.c_str()))) {
 		ctx.matches["prefixarithraw"_h] = std::string{ currlexing, currlexing + 2 };
 		currlexing += 2;
 		ctx.call(unaryexpr);
 		ctx.doit("unaryincdec");
-
+		consumewhitespace();
 		return ctx;
 	}
 
@@ -1237,18 +1297,18 @@ return_t unary(ctx ctx) {
 		currlexing++;
 		ctx.call(castexpr);
 		ctx.doit("unary");
-
+		consumewhitespace();
 		return ctx;
 	}
 
 	if (isonboundary("sizeof")) {
 		if (ctx.call(typename_)) {
-			doit("endsizeoftypename");
+			ctx.doit("endsizeoftypename");
 		}
 		else {
-			doit("beginsizeofexpr");
+			ctx.doit("beginsizeofexpr");
 			assert(ctx.call(unaryexpr));
-			doit("endsizeofexpr");
+			ctx.doit("endsizeofexpr");
 		}
 
 		return ctx;
@@ -1257,9 +1317,7 @@ return_t unary(ctx ctx) {
 	return !ctx;
 }
 
-return_t unaryexpr(ctx ctx) {
-	consumewhitespace();
-	ctx.matches.clear();
+return_t unaryexpr(arg_clear_t ctx) {
 
 	if (ctx.call(inner) || ctx.call(inparenths)) {
 		while (ctx.call(postfix));
@@ -1270,9 +1328,7 @@ return_t unaryexpr(ctx ctx) {
 	}
 }
 
-return_t castexpr(ctx ctx) {
-	consumewhitespace();
-	ctx.matches.clear();
+return_t castexpr(arg_clear_t ctx) {
 
 	if (ctx.call(typenamerev)) {
 		return ctx;
@@ -1282,9 +1338,7 @@ return_t castexpr(ctx ctx) {
 	}
 }
 
-return_t typenamerev(ctx ctx) {
-	consumewhitespace();
-	ctx.matches.clear();
+return_t typenamerev(arg_clear_t ctx) {
 
 	++recording;
 
@@ -1303,7 +1357,7 @@ return_t typenamerev(ctx ctx) {
 }
 
 
-return_t binopplusrest(ctx ctx) {
+return_t binop(ctx ctx) {
 
 	(ctxprops)ctx = { false, false, false };
 
@@ -1434,11 +1488,11 @@ mulopraw:
 }
 
 return_t binopplusrest(ctx ctx) {
-	(ctxprops)ctx = { false, false, false };
+	(ctxprops)ctx = { true, false, false };
 
-	if (ctx.call(binopplusrest)) {
+	if (ctx.call(binop)) {
 		ctx.call(castexpr);
-		while (ctx.call(binopplusrest));
+		while (ctx.call(binop));
 		ctx.doit("binary");
 
 		return ctx;
@@ -1448,7 +1502,7 @@ return_t binopplusrest(ctx ctx) {
 }
 
 return_t orlogiorsomething(ctx ctx) {
-	(ctxprops)ctx = { false, false, false };
+	(ctxprops)ctx = { true, false, false };
 
 	if (ctx.call(binopplusrest)) {
 		while (ctx.call(binopplusrest));
@@ -1457,16 +1511,15 @@ return_t orlogiorsomething(ctx ctx) {
 	return !ctx;
 }
 
-return_t ternaryrest(ctx ctx) {
+return_t ternaryrest(arg_clear_t ctx) {
 	consumewhitespace();
-	ctx.matches.clear();
 
 	if (*currlexing == '?') {
 		++currlexing;
 
 		ctx.doit("begin_ternary");
 
-		assert(ctx.call(primexpr));
+		assert(ctx.call(primexprnormal));
 
 		assert(*currlexing == ':');
 
@@ -1482,8 +1535,7 @@ return_t ternaryrest(ctx ctx) {
 	return !ctx;
 }
 
-return_t ternaryorsomething(ctx ctx) {
-	ctx.matches.clear();
+return_t ternaryorsomething(arg_clear_t ctx) {
 
 	auto lastrec = ctx.record;
 
@@ -1507,7 +1559,7 @@ return_t ternaryorsomething(ctx ctx) {
 	return !ctx;
 }
 
-return_t ternarylogicopt(ctx ctx) {
+return_t ternarylogicopt(arg_clear_t ctx) {
 	ctx.call(orlogiorsomething);
 
 	auto rec = ctx.record;
@@ -1526,9 +1578,7 @@ return_t ternarylogicopt(ctx ctx) {
 	return ctx;
 }
 
-return_t assignorsomething(ctx ctx) {
-	consumewhitespace();
-	ctx.matches.clear();
+return_t assignorsomething(arg_clear_t ctx) {
 
 	auto lastrec = ctx.record;
 
