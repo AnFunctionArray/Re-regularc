@@ -97,9 +97,12 @@ struct ctx : ctxprops {
 	std::unordered_map<unsigned, unsigned> flags;
 
 	bool call(auto what) {
-		*this = what(*this);
+		auto res = what(*this);
 
-		return result;
+		if(res.result)
+			*this = what(*this);
+
+		return res.result;
 	};
 
 	void doit(std::string fnname) {
@@ -202,7 +205,7 @@ return_t stringlit(ctx ctx) {
 			auto checkrawcharcompletion = [&] {
 				if (potrawtext[0] != potrawtext[1]) {
 					ctx.matches["textraw"_h] = std::string{ potrawtext[0], potrawtext[1] };
-					doit("addplaintexttostring");
+					ctx.doit("addplaintexttostring");
 				}
 			};
 
@@ -1299,22 +1302,242 @@ return_t typenamerev(ctx ctx) {
 	return !ctx;
 }
 
-return_t orlogiorsomething(ctx ctx) {
 
+return_t binopplusrest(ctx ctx) {
+
+	(ctxprops)ctx = { false, false, false };
+
+	if (ctx.matches.contains("addopraw"_h))
+		goto mulopraw;
+	else if(ctx.matches.contains("shiftopraw"_h))
+		goto addopraw;
+	else if (ctx.matches.contains("relopraw"_h))
+		goto shiftopraw;
+	else if (ctx.matches.contains("eqopraw"_h))
+		goto relopraw;
+	else if (ctx.matches.contains("andopraw"_h))
+		goto eqopraw;
+	else if (ctx.matches.contains("xoropraw"_h))
+		goto andopraw;
+	else if (ctx.matches.contains("oropraw"_h))
+		goto xoropraw;
+	else if (ctx.matches.contains("andlogicopraw"_h))
+		goto oropraw;
+	else if (ctx.matches.contains("orlogicopraw"_h))
+		goto andlogicopraw;
+
+orlogicopraw: 
+	if (std::string{ currlexing, currlexing + 2 } == "||") {
+		ctx.doit("begin_branch");
+		ctx.flags["containbranch"_h] = true;
+		ctx.matches["binoplast"_h] = ctx.matches["orlogicopraw"_h] = std::string{ currlexing, currlexing + 2 };
+
+		currlexing += 2;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+andlogicopraw:
+	if (std::string{ currlexing, currlexing + 2 } == "&&") {
+		ctx.doit("begin_branch");
+		ctx.flags["containbranch"_h] = true;
+
+		ctx.matches["binoplast"_h] = ctx.matches["andlogicopraw"_h] = std::string{ currlexing, currlexing + 2 };
+
+		currlexing += 2;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+oropraw:
+	if (*currlexing == '|' && currlexing[1] != '|') {
+		ctx.matches["binoplast"_h] = ctx.matches["oropraw"_h] = *currlexing++;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+xoropraw:
+	if (*currlexing == '^') {
+		ctx.matches["binoplast"_h] = ctx.matches["binoplast"_h] = ctx.matches["xoropraw"_h] = *currlexing++;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+andopraw:
+	if (*currlexing == '&' && currlexing[1] != '&') {
+		ctx.matches["binoplast"_h] = ctx.matches["andopraw"_h] = *currlexing++;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+eqopraw:
+	if (std::string{ currlexing, currlexing + 2 } == "==" || std::string{ currlexing, currlexing + 2 } == "!=") {
+		ctx.matches["binoplast"_h] = ctx.matches["eqopraw"_h] = std::string{ currlexing, currlexing + 2 };
+
+		currlexing += 2;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+relopraw:
+	if (*currlexing == '<' && currlexing[1] != '<' ||
+		*currlexing == '>' && currlexing[1] != '>') {
+		ctx.matches["binoplast"_h] = ctx.matches["relopraw"_h] = *currlexing++;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+	if (std::string{ currlexing, currlexing + 2 } == "<=" || std::string{ currlexing, currlexing + 2 } == ">=") {
+		ctx.matches["binoplast"_h] = ctx.matches["relopraw"_h] = std::string{ currlexing, currlexing + 2 };
+
+		currlexing += 2;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+shiftopraw:
+	if (std::string{ currlexing, currlexing + 2 } == "<<" || std::string{ currlexing, currlexing + 2 } == ">>") {
+		ctx.matches["binoplast"_h] = ctx.matches["shiftopraw"_h] = std::string{ currlexing, currlexing + 2 };
+
+		currlexing += 2;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+addopraw:
+	if (ranges::contains(std::string{ "+-" }, *currlexing)) {
+		ctx.matches["binoplast"_h] = ctx.matches["addopraw"_h] = *currlexing++;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+mulopraw:
+	if (ranges::contains(std::string{ "*/%" }, *currlexing)) {
+		ctx.matches["binoplast"_h] = ctx.matches["mulopraw"_h] = *currlexing++;
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t binopplusrest(ctx ctx) {
+	(ctxprops)ctx = { false, false, false };
+
+	if (ctx.call(binopplusrest)) {
+		ctx.call(castexpr);
+		while (ctx.call(binopplusrest));
+		ctx.doit("binary");
+
+		return ctx;
+	}
+	
+	return !ctx;
+}
+
+return_t orlogiorsomething(ctx ctx) {
+	(ctxprops)ctx = { false, false, false };
+
+	if (ctx.call(binopplusrest)) {
+		while (ctx.call(binopplusrest));
+		return ctx;
+	}
+	return !ctx;
+}
+
+return_t ternaryrest(ctx ctx) {
+	consumewhitespace();
+	ctx.matches.clear();
+
+	if (*currlexing == '?') {
+		++currlexing;
+
+		ctx.doit("begin_ternary");
+
+		assert(ctx.call(primexpr));
+
+		assert(*currlexing == ':');
+
+		++currlexing;
+
+		ctx.doit("mid_ternary");
+
+		consumewhitespace();
+
+		return ctx;
+	}
+
+	return !ctx;
+}
+
+return_t ternaryorsomething(ctx ctx) {
+	ctx.matches.clear();
+
+	auto lastrec = ctx.record;
+
+	ctx.record.clear();
+
+	++recording;
+
+	if (ctx.call(ternaryrest)) {
+		assert(ctx.call(castexpr));
+		ctx.call(ternarylogicopt);
+
+		--recording;
+
+		ctx.record.splice(++ctx.record.begin(), lastrec);
+
+		return ctx;
+	}
+
+	--recording;
+
+	return !ctx;
 }
 
 return_t ternarylogicopt(ctx ctx) {
+	ctx.call(orlogiorsomething);
 
+	auto rec = ctx.record;
+	--recording;
+	ctx.record.clear();
+	if (ctx.flags["containbranch"_h]) {
+		ctx.doit("begin_binary");
+	}
+	replay(rec);
+	if (ctx.flags["containbranch"_h]) {
+		ctx.doit("end_binary");
+	}
+
+	ctx.call(ternaryorsomething);
+
+	return ctx;
 }
 
 return_t assignorsomething(ctx ctx) {
 	consumewhitespace();
 	ctx.matches.clear();
 
+	auto lastrec = ctx.record;
+
+	ctx.record.clear();
+
 	++recording;
 
 	if (ctx.call(unaryexpr)) {
-		if (*currlexing == '=') {
+		if (*currlexing == '=' && currlexing[1] != '=') {
 			ctx.matches["binoplast"_h] = '=';
 			++currlexing;
 			goto assignrest;
@@ -1338,6 +1561,8 @@ assignrest:
 	}
 
 	--recording;
+
+	ctx.record.splice(++ctx.record.begin(), lastrec);
 
 	return !ctx;
 }
