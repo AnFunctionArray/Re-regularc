@@ -24,7 +24,7 @@ execute_process(COMMAND ${LLVM_CONFIG} --includedir
 execute_process(COMMAND ${LLVM_CONFIG} --libdir
                 OUTPUT_VARIABLE llvm_libdir)
 
-add_executable(regularc llvm/llvmgen.cpp src/main.c perltoc.c)
+add_executable(regularc llvm/llvmgen.cpp src/main.c perltoc.c lexer/lexer.cpp)
 
 if(NOT PERLLIBS_FOUND)
     message(WARNING "Missing perl libraries")

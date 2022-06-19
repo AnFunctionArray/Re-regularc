@@ -3348,7 +3348,7 @@ llvm::BranchInst* splitbb(const char* identifier, size_t szident) {
 		bareweabrupt = true;
 	pcurrblock.push_back(llvm::BasicBlock::Create(
 		llvmctx, std::string{ identifier, szident }, dyn_cast<llvm::Function> (currfunc->requestValue())));
-	llvm::BranchInst* preturn;
+	llvm::BranchInst* preturn=nullptr;
 	if (!bareweabrupt)
 		preturn = llvmbuilder.CreateBr(pcurrblock.back());
 	llvmbuilder.SetInsertPoint(pcurrblock.back());
@@ -4874,4 +4874,44 @@ extern "C" int secondmain(char* subject, size_t szsubject, char* pattern,
 
 	//startmodule(modulename, szmodulename);
 	return 0;
+}
+
+extern "C" int handler2(int reportType, char* message, int* returnValue);
+extern "C" void handler1(int sig);
+
+std::string subject;
+
+extern std::string::iterator currlexing;
+
+#include "../lexer/lexer.hpp"
+
+int main(int argc, char** argv, char** env)
+{
+	std::ifstream filein{ argv[1] };
+
+	std::stringstream buff;
+
+	buff << filein.rdbuf();
+	 
+	subject = buff.str();
+
+	subject.insert(0, "                                                                    ");
+	subject.append("    $$$$$                                                           ");
+
+	currlexing = subject.begin() + 69 / 2;
+
+	startmodule(argv[1], strlen(argv[1]));
+
+	cprogram(ctx{});
+
+	signal(SIGTERM, handler1);
+#if _WIN32 && defined(NDEBUGSTATE)
+	_CrtSetReportHook(handler2);
+#endif
+	if (getenv("THREADING")) {
+		void* wait_for_call(void*);
+		//pthread_create(&thread, 0, wait_for_call, 0);
+	}
+
+	endmodule();
 }

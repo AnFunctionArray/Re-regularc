@@ -304,6 +304,7 @@ int handler2(int reportType, char* message, int* returnValue) {
 	exit(0);
 }
 
+#if 0
 int main(int argc, char** argv, char** env)
 {
 	//onig_initialize((OnigEncoding[]){&OnigEncodingUTF8}, 1);
@@ -346,6 +347,7 @@ int main(int argc, char** argv, char** env)
 	perl_free(my_perl);
 	PERL_SYS_TERM();
 }
+#endif
 
 #ifdef _WIN32
 

@@ -1,5 +1,4 @@
-#include "llvm/ADT/ArrayRef.h"
-#include "llvm/IR/Value.h"
+
 #include <cctype>
 #include <cstdlib>
 #include <exception>
@@ -12,22 +11,6 @@
 #include <initializer_list>
 #include <iostream>
 #include <list>
-#include <llvm/Bitcode/BitcodeWriter.h>
-#include <llvm/IR/BasicBlock.h>
-#include <llvm/IR/Constants.h>
-#include <llvm/IR/DataLayout.h>
-#include <llvm/IR/DerivedTypes.h>
-#include <llvm/IR/Function.h>
-#include <llvm/IR/GlobalIFunc.h>
-#include <llvm/IR/GlobalVariable.h>
-#include <llvm/IR/IRBuilder.h>
-#include <llvm/IR/InstrTypes.h>
-#include <llvm/IR/Instruction.h>
-#include <llvm/IR/LLVMContext.h>
-#include <llvm/IR/Module.h>
-#include <llvm/IR/Type.h>
-#include <llvm/Support/Error.h>
-#include <llvm/Transforms/Utils/BasicBlockUtils.h>
 #include <locale>
 #include <ostream>
 #include <queue>
@@ -73,75 +56,11 @@ constexpr inline auto operator"" _h(char const* p, size_t) {
 	return stringhash(p);
 }
 
-static std::string::iterator currlexing;
+std::string::iterator currlexing;
 
-extern std::string subject;
+size_t recording;
 
-extern "C" void docall(const char* name, size_t szname, void* phashmap);
-
-typedef std::list<std::pair<std::string, std::unordered_map<unsigned, std::string>>> record;
-
-static size_t recording;
-
-struct ctxprops {
-	bool filtermatchesout = true;
-	bool filterflagsout = true;
-	bool filterrecordout = false;
-};
-
-struct ctx : ctxprops {
-
-	bool result = true;
-	record record;
-	std::unordered_map<unsigned, std::string> matches;
-	std::unordered_map<unsigned, unsigned> flags;
-
-	template<typename argT>
-	bool call(argT what) {
-		auto res = what(*this);
-
-		if(res.result)
-			*this = what(*this);
-
-		return res.result;
-	};
-
-	void doit(std::string fnname) {
-
-		if (recording) {
-			docall(fnname.c_str(), fnname.length(), (void*)&matches);
-		}
-		else {
-			record.push_back({ fnname.c_str(), matches });
-		}
-	}
-
-	struct ctx& operator!() {
-		result = false;
-		return *this;
-	}
-};
-
-struct return_t : ctx {
-	return_t(const ctx& arg) : ctx{ arg } {
-		if (filtermatchesout) {
-			matches.clear();
-		}
-		if (filterflagsout) {
-			flags.clear();
-		}
-		if (filterrecordout) {
-			record.clear();
-		}
-	}
-};
-
-struct arg_clear_t : ctx {
-	arg_clear_t(const ctx& arg) {
-		flags = arg.flags;
-		record = arg.record;
-	}
-};
+#include "lexer.hpp"
 
 template<>
 bool ctx::call(arg_clear_t what);
@@ -149,17 +68,35 @@ bool ctx::call(arg_clear_t what);
 template<>
 bool ctx::call(ctx what);
 
-void doit(std::string fnname, void* phashmap, record &refrecord) {
+return_t assignorsomething(arg_clear_t ctx);
 
-	if (recording) {
-		docall(fnname.c_str(), fnname.length(), phashmap);
+return_t abstdeclorallqualifs(arg_clear_t ctx);
+
+return_t compoundstatement(arg_clear_t ctx);
+
+return_t unaryexpr(arg_clear_t ctx);
+
+return_t castexpr(arg_clear_t ctx);
+
+return_t typenamerev(arg_clear_t ctx);
+
+return_t ternarylogicopt(arg_clear_t ctx);
+
+return_t statement(arg_clear_t ctx);
+
+return_t exprstatement(arg_clear_t ctx);
+
+void doit(std::string fnname, void* phashmap, record_t &refrecord) {
+	auto matchescopy = *static_cast<const std::unordered_map<unsigned, std::string>*>(phashmap);
+	if (!recording) {
+		docall(fnname.c_str(), fnname.length(), &matchescopy);
 	}
 	else {
 		refrecord.push_back({ fnname.c_str(), *static_cast<const std::unordered_map<unsigned, std::string>*>(phashmap) });
 	}
 }
 
-static void replay(record &what) {
+static void replay(record_t &what) {
 
 	if (recording);
 	else for (const auto& call : what) {
@@ -235,6 +172,7 @@ return_t stringlit(arg_clear_t ctx) {
 			--recording;
 			
 			if (ctx.matches["begincharliteral"_h][0] == *currlexing) {
+				++currlexing;
 				checkrawcharcompletion();
 				break;
 			}
@@ -320,7 +258,7 @@ return_t numberliteral(arg_clear_t ctx) {
 
 return_t exponent(ctx ctx) {
 
-	(ctxprops)ctx = {false, true, false};
+	(ctxprops&)ctx = {false, true, false};
 
 	if (ranges::contains(std::string{ "eE" }, *currlexing)) {
 		auto beg = ++currlexing;
@@ -339,6 +277,8 @@ return_t exponent(ctx ctx) {
 
 return_t floating(arg_clear_t ctx) {
 	consumewhitespace();
+
+	auto last = currlexing;
 
 	if(*currlexing == '.') 
 fraction:
@@ -365,6 +305,7 @@ fraction:
 		currlexing += 3;
 		goto success;
 	}
+	currlexing = last;
 	return !ctx;
 success:
 	{
@@ -400,7 +341,7 @@ bool isonboundary(std::string what) {
 
 return_t identifier(ctx ctx) {
 	consumewhitespace();
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	if (isonboundary() && (isalpha(*currlexing) || *currlexing == '_')) {
 		auto beg = currlexing;
@@ -418,7 +359,7 @@ return_t identifier(ctx ctx) {
 return_t qualifiersidentifier(ctx ctx) {
 	consumewhitespace();
 
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	auto last = currlexing;
 
@@ -448,7 +389,7 @@ return_t qualifiersidentifier(ctx ctx) {
 return_t qualifiersortypeidentifier(ctx ctx) {
 	consumewhitespace();
 
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	auto last = currlexing;
 
@@ -521,8 +462,9 @@ return_t abstrptrrev(ctx ctx) {
 			ctx.doit("addptrtotype");
 		}
 		else {
-			assert(ctx.call(Tinside));
-			while (ctx.call(abstrsubs));
+			if (ctx.call(Tinside))
+				while (ctx.call(abstrsubs));
+			else return !ctx;
 			ctx.doit("addptrtotype");
 		}
 
@@ -669,23 +611,21 @@ return_t abstdecl(ctx ctx) {
 	}
 
 	if (!ctx.call(abstrptrrev)) {
-		ctx.call(Tabstrrestalt);
 
-		return ctx;
+		return ctx.call(Tabstrrestalt) ? ctx : !ctx;
 	}
 
-	return !ctx;
+	return ctx;
 }
 
 
 return_t Tinside(ctx ctx) {
 
-	record currrecord;
-
 	switch (ctx.flags["outter"_h]) if (0);
 	else if (0) {
 	case "params"_h:
 		if (*currlexing == '(') {
+			++currlexing;
 			ctx.call(abstdecl);
 			assert(*currlexing == ')');
 			++currlexing;
@@ -702,6 +642,7 @@ return_t Tinside(ctx ctx) {
 	else if (0) {
 	case "normal"_h:
 		if (*currlexing == '(') {
+			++currlexing;
 			ctx.call(abstdecl);
 			assert(*currlexing == ')');
 			++currlexing;
@@ -738,6 +679,7 @@ return_t primexpr(arg_clear_t ctx) {
 			if (ctx.flags["primexpr"_h] != "call"_h) {
 				ctx.doit("comma");
 			}
+			currlexing++;
 			assert(ctx.call(assignorsomething));
 		}
 
@@ -787,11 +729,17 @@ return_t abstrsubs(ctx ctx) {
 			goto noparams;
 		}
 
-		while (ctx.call(param));
-
-		if (std::string{ currlexing , currlexing + 3 } == "...") {
-			ctx.matches["rest"_h] = std::string{ currlexing , currlexing + 3 };
-			currlexing += 3;
+		while (ctx.call(param)) {
+			if (*currlexing == ',') {
+				++currlexing;
+				consumewhitespace();
+				if (std::string{ currlexing , currlexing + 3 } == "...") {
+					ctx.matches["rest"_h] = std::string{ currlexing , currlexing + 3 };
+					currlexing += 3;
+					break;
+				}
+			}
+			else break;
 		}
 
 		noparams:
@@ -816,7 +764,7 @@ return_t abstrsubs(ctx ctx) {
 return_t identifier_typedef(ctx ctx) {
 	consumewhitespace();
 
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	auto last = currlexing;
 
@@ -832,13 +780,15 @@ return_t identifier_typedef(ctx ctx) {
 		return ctx;
 	}
 
+	currlexing = last;
+
 	return !ctx;
 }
 
 return_t typedefkey(ctx ctx) {
 	consumewhitespace();
 
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	if (isonboundary("typedef")) {
 
@@ -893,7 +843,7 @@ return_t strcelem(arg_clear_t ctx) {
 return_t structorunion(ctx ctx) {
 	consumewhitespace();
 
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	bool isenum = false;
 
@@ -981,9 +931,8 @@ return_t structorunion(ctx ctx) {
 }
 
 return_t abstdeclorallqualifsqualifs(ctx ctx) {
-	record currrecord;
 
-	(ctxprops)ctx = { false, true, false };
+	(ctxprops&)ctx = { false, true, false };
 
 	if (!ctx.matches.contains("qualiffound"_h) && !ctx.matches.contains("typefound"_h)) {
 
@@ -991,6 +940,13 @@ return_t abstdeclorallqualifsqualifs(ctx ctx) {
 			return ctx;
 		}
 		else if (ctx.call(identifier_typedef)) {
+			return ctx;
+		}
+	}
+
+	if (!ctx.matches.contains("structorunionlast"_h) && !ctx.matches.contains("enum"_h)
+		&& !ctx.matches.contains("typedefnmmatched"_h)) {
+		if (ctx.call(qualifiersortypeidentifier)) {
 			return ctx;
 		}
 	}
@@ -1147,7 +1103,7 @@ return_t abstdeclorallqualifs(arg_clear_t ctx) {
 			ctx.call(optinit);
 			if (*currlexing != ',' || ctx.flags["outter"_h] != "normal"_h) break;
 			++currlexing;
-startdowhile:
+		startdowhile:;
 		} while (ctx.call(abstdecl));
 
 		return ctx;
@@ -1203,6 +1159,7 @@ return_t declopt(arg_clear_t ctx) {
 	if (ctx.call(abstdeclorallqualifs)) {
 
 		if (*currlexing == ';') {
+			++currlexing;
 			ctx.doit("endfulldecl");
 			consumewhitespace();
 		}
@@ -1279,6 +1236,7 @@ return_t postfix(arg_clear_t ctx) {
 	switch (*currlexing) if (0);
 	else if (0) {
 	case '[':
+		++currlexing;
 		ctx.call(primexprnormal);
 		assert(*currlexing == ']');
 		ctx.doit("subscript");
@@ -1288,6 +1246,7 @@ return_t postfix(arg_clear_t ctx) {
 	}
 	else if (0) {
 	case '(':
+		++currlexing;
 		ctx.doit("startfunctioncall");
 		ctx.call(primexprcall);
 		assert(*currlexing == ')');
@@ -1383,7 +1342,7 @@ return_t castexpr(arg_clear_t ctx) {
 		return ctx;
 	}
 	else {
-		return ctx.call(unary) ? ctx : !ctx;
+		return ctx.call(unaryexpr) ? ctx : !ctx;
 	}
 }
 
@@ -1393,7 +1352,7 @@ return_t typenamerev(arg_clear_t ctx) {
 
 	if (ctx.call(typename_)) {
 		--recording;
-		record tpnmrec = ctx.record;
+		auto tpnmrec = ctx.record;
 		ctx.call(castexpr);
 		replay(tpnmrec);
 		ctx.doit("applycast");
@@ -1408,7 +1367,7 @@ return_t typenamerev(arg_clear_t ctx) {
 
 return_t binop(ctx ctx) {
 
-	(ctxprops)ctx = { false, false, false };
+	(ctxprops&)ctx = { false, false, false };
 
 	if (ctx.matches.contains("addopraw"_h))
 		goto mulopraw;
@@ -1537,7 +1496,7 @@ mulopraw:
 }
 
 return_t binopplusrest(ctx ctx) {
-	(ctxprops)ctx = { true, false, false };
+	(ctxprops&)ctx = { true, false, false };
 
 	if (ctx.call(binop)) {
 		ctx.call(castexpr);
@@ -1551,7 +1510,7 @@ return_t binopplusrest(ctx ctx) {
 }
 
 return_t orlogiorsomething(ctx ctx) {
-	(ctxprops)ctx = { true, false, false };
+	(ctxprops&)ctx = { true, false, false };
 
 	if (ctx.call(binopplusrest)) {
 		while (ctx.call(binopplusrest));
@@ -1660,8 +1619,8 @@ assignrest:
 	}
 
 	--recording;
-
-	ctx.record.splice(++ctx.record.begin(), lastrec);
+	
+	ctx.record = lastrec;
 
 	return !ctx;
 }
@@ -2004,6 +1963,8 @@ return_t label(arg_clear_t ctx) {
 
 	return !ctx;
 }
+
+return_t statementinner(arg_clear_t ctx);
 
 return_t statement(arg_clear_t ctx) {
 	while (ctx.call(label));
