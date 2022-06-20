@@ -20,6 +20,10 @@
 #include "main.h"
 //#include <oniguruma.h>
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 #if 0
 
 FILE* foutput, *foutput2;
@@ -240,7 +244,7 @@ struct retgetnamevalue getnamevalue(const char* nametoget) {
 }
 
 #endif
-
+#if 0
 #include <EXTERN.h> /* from the Perl distribution     */
 #include <perl.h>	/* from the Perl distribution     */
 #include <XSUB.h>
@@ -260,6 +264,7 @@ xs_init(pTHX)
 }
 
 PerlInterpreter* my_perl; /***    The Perl interpreter    ***/
+#endif
 //pthread_t thread;
 #if 0
 #include <userenv.h>
@@ -295,6 +300,7 @@ void handler1(int sig) {
 #ifdef _WIN32
 #include 	<crtdbg.h>
 #endif
+
 
 int handler2(int reportType, char* message, int* returnValue) {
 	if (returnValue)

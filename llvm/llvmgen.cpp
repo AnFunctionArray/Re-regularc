@@ -2289,7 +2289,7 @@ DLL_EXPORT void addescapesequencetostring(std::unordered_map<unsigned, std::stri
 	std::string escape{ hashes["escaperaw"_h] };
 
 	switch (stringhash(escape.c_str())) {
-	case "\\n"_h:
+	case "n"_h:
 		currstring += '\n';
 		break;
 	}
@@ -4754,7 +4754,7 @@ std::list<val>& bindings_compiling::immidiates = ::immidiates;
 
 #endif
 
-
+#if 0
 extern "C" {
 #include <EXTERN.h> /* from the Perl distribution     */
 #include <perl.h>	/* from the Perl distribution     */
@@ -4762,6 +4762,7 @@ extern "C" {
 }
 #undef wait
 #undef write
+#endif
 
 #include <cassert>
 
@@ -4777,7 +4778,7 @@ void call(std::unordered_map<unsigned, std::string> hash, std::string callname) 
 
 std::queue<std::pair<std::unordered_map<unsigned, std::string>, std::string>> callstack;
 
-extern "C" PerlInterpreter * my_perl;
+//extern "C" PerlInterpreter * my_perl;
 
 extern "C" void* wait_for_call(void*) {
 	do {
@@ -4797,7 +4798,7 @@ extern "C" void* wait_for_call(void*) {
 }
 
 static std::list<std::pair<std::unordered_map<unsigned, std::string>, std::string>> recordstack;
-
+#if 0
 DLL_EXPORT void do_callout(SV * in, HV * hash)
 {
 
@@ -4849,7 +4850,7 @@ DLL_EXPORT void do_callout(SV * in, HV * hash)
 	}
 }
 
-
+#endif
 DLL_EXPORT void startrecording() {
 	recordstack.push_back({});
 }
@@ -4884,9 +4885,11 @@ std::string subject;
 extern std::string::iterator currlexing;
 
 #include "../lexer/lexer.hpp"
+#include <signal.h>
 
 int main(int argc, char** argv, char** env)
 {
+
 	std::ifstream filein{ argv[1] };
 
 	std::stringstream buff;
@@ -4902,7 +4905,9 @@ int main(int argc, char** argv, char** env)
 
 	startmodule(argv[1], strlen(argv[1]));
 
-	cprogram(ctx{});
+	ctx ct;
+
+	ct.call(cprogram);
 
 	signal(SIGTERM, handler1);
 #if _WIN32 && defined(NDEBUGSTATE)
