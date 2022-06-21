@@ -67,23 +67,31 @@ size_t recording;
 
 #include "lexer.hpp"
 
-return_t assignorsomething(arg_clear_t ctx);
+record_t records;
 
-return_t abstdeclorallqualifs(arg_clear_t ctx);
+return_t_passthrough assignorsomething(ctx_passthrough ctx);
 
-return_t compoundstatement(arg_clear_t ctx);
+return_t_passthrough abstdeclorallqualifs(ctx ctx);
 
-return_t unaryexpr(arg_clear_t ctx);
+return_t_passthrough compoundstatement(ctx_passthrough ctx);
 
-return_t castexpr(arg_clear_t ctx);
+return_t_passthrough unaryexpr(ctx_passthrough ctx);
 
-return_t typenamerev(arg_clear_t ctx);
+return_t_passthrough castexpr(ctx_passthrough ctx);
 
-return_t ternarylogicopt(arg_clear_t ctx);
+return_t_passthrough typenamerev(ctx_passthrough ctx);
 
-return_t statement(arg_clear_t ctx);
+return_t_passthrough ternarylogicopt(ctx_passthrough ctx);
 
-return_t exprstatement(arg_clear_t ctx);
+return_t_passthrough statement(ctx_passthrough ctx);
+
+return_t_passthrough exprstatement(ctx_passthrough ctx);
+
+return_t_passthrough Tinside(ctx_passthrough ctx);
+
+return_t_passthrough abstrsubs(ctx ctx);
+
+return_t_passthrough param(ctx ctx);
 
 void doit(std::string fnname, void* phashmap, record_t &refrecord) {
 	auto matchescopy = *static_cast<const std::unordered_map<unsigned, std::string>*>(phashmap);
@@ -100,7 +108,7 @@ bool consumewhitespace() {
 	return true;
 }
 
-return_t escape(arg_clear_t ctx) {
+return_t_passthrough escape(ctx_passthrough ctx) {
 
 	if (*currlexing == '\\') {
 		auto begin = ++currlexing;
@@ -132,7 +140,7 @@ return_t escape(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t stringlit(arg_clear_t ctx) {
+return_t_passthrough stringlit(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (ranges::contains(std::array{ '\'', '\"' }, *currlexing)) {
@@ -154,19 +162,18 @@ return_t stringlit(arg_clear_t ctx) {
 
 			++recording;
 
-			auto lastrec = ctx.record;
-			ctx.record.clear();
+			records.push_back({});
+
+			auto record = --records.end();
 
 			if (ctx.call(escape)) {
 				--recording;
-				auto tpnmrec = ctx.record;
-				ctx.record = lastrec;
 				checkrawcharcompletion();
-				ctx.replay(tpnmrec);
+				ctx.replay(extract_last_record(record));
 				lastnonescapebegin = currlexing;
 			}
 			else {
-				ctx.record = lastrec;
+				records.pop_back();
 				--recording;
 			}
 			
@@ -187,7 +194,7 @@ return_t stringlit(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t numberliteral(arg_clear_t ctx) {
+return_t_passthrough numberliteral(ctx ctx) {
 	consumewhitespace();
 	
 	switch (stringhash(std::string{ currlexing, currlexing + 1 }.c_str())) if (0);
@@ -255,9 +262,7 @@ return_t numberliteral(arg_clear_t ctx) {
 	}
 }
 
-return_t exponent(ctx ctx) {
-
-	(ctxprops&)ctx = {false, true, false};
+return_t_passthrough exponent(ctx_passthrough ctx) {
 
 	if (ranges::contains(std::string{ "eE" }, *currlexing)) {
 		auto beg = ++currlexing;
@@ -274,7 +279,7 @@ return_t exponent(ctx ctx) {
 	return !ctx;
 }
 
-return_t floating(arg_clear_t ctx) {
+return_t_passthrough floating(ctx ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -338,9 +343,8 @@ bool isonboundary(std::string what) {
 	return false;
 }
 
-return_t identifier(ctx ctx) {
+return_t_passthrough identifier(ctx_passthrough ctx) {
 	consumewhitespace();
-	(ctxprops&)ctx = { false, true, false };
 
 	if (isonboundary() && (isalpha(*currlexing) || *currlexing == '_')) {
 		auto beg = currlexing;
@@ -355,10 +359,8 @@ return_t identifier(ctx ctx) {
 	return !ctx;
 }
 
-return_t qualifiersidentifier(ctx ctx) {
+return_t_passthrough qualifiersidentifier(ctx_passthrough ctx) {
 	consumewhitespace();
-
-	(ctxprops&)ctx = { false, true, false };
 
 	auto last = currlexing;
 
@@ -385,10 +387,8 @@ return_t qualifiersidentifier(ctx ctx) {
 	return !ctx;
 }
 
-return_t qualifiersortypeidentifier(ctx ctx) {
+return_t_passthrough qualifiersortypeidentifier(ctx_passthrough ctx) {
 	consumewhitespace();
-
-	(ctxprops&)ctx = { false, true, false };
 
 	auto last = currlexing;
 
@@ -430,10 +430,7 @@ return_t qualifiersortypeidentifier(ctx ctx) {
 	return !ctx;
 }
 
-return_t Tinside(ctx ctx);
-return_t abstrsubs(ctx ctx);
-
-return_t abstrptrrev(ctx ctx) {
+return_t_passthrough abstrptrrev(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '*') {
@@ -447,7 +444,7 @@ return_t abstrptrrev(ctx ctx) {
 			consumewhitespace();
 		}
 
-		size_t currrecordsize = ctx.record.size();
+		size_t currrecordsize = records.size();
 
 		++recording;
 
@@ -455,7 +452,7 @@ return_t abstrptrrev(ctx ctx) {
 
 		--recording;
 
-		ctx.record.resize(currrecordsize);
+		records.resize(currrecordsize);
 
 		if (ctx.call(abstrptrrev)) {
 			ctx.doit("addptrtotype");
@@ -473,21 +470,23 @@ return_t abstrptrrev(ctx ctx) {
 	return !ctx;
 }
 
-return_t Tabstrrestalt(ctx ctx) {
+return_t_passthrough Tabstrrestalt(ctx_passthrough ctx) {
 	
 	switch (ctx.flags["outter"_h]) if (0);
 	else if (0) {
 	case "params"_h:
 		++recording;
+		records.push_back({});
+
+		auto record = --records.end();
 		ctx.doit("identifier_decl");
 		if (ctx.call(abstrsubs)) {
-			auto lastrec = ctx.record;
-			ctx.record.clear();
 			--recording;
-			ctx.replay(lastrec);
+			ctx.replay(extract_last_record(record));
 			while (ctx.call(abstrsubs));
 			return ctx;
 		}
+		records.pop_back();
 		--recording;
 		if (!ctx.call(Tinside)) {
 			return !ctx;
@@ -560,7 +559,7 @@ bool isidentkeyword(std::string ident) {
 	return false;
 }
 
-return_t identifierminedecl(ctx ctx) {
+return_t_passthrough identifierminedecl(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -581,7 +580,7 @@ return_t identifierminedecl(ctx ctx) {
 	return !ctx;
 }
 
-return_t ident(ctx ctx) {
+return_t_passthrough ident(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -598,7 +597,7 @@ return_t ident(ctx ctx) {
 	return !ctx;
 }
 
-return_t abstdecl(ctx ctx) {
+return_t_passthrough abstdecl(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (isonboundary("__stdcall")) {
@@ -612,14 +611,17 @@ return_t abstdecl(ctx ctx) {
 
 	if (!ctx.call(abstrptrrev)) {
 
-		return ctx.call(Tabstrrestalt) ? ctx : !ctx;
+		if (ctx.call(Tabstrrestalt))
+			return ctx;
+		else 
+			return !ctx;
 	}
 
 	return ctx;
 }
 
 
-return_t Tinside(ctx ctx) {
+return_t_passthrough Tinside(ctx_passthrough ctx) {
 
 	switch (ctx.flags["outter"_h]) if (0);
 	else if (0) {
@@ -671,7 +673,7 @@ return_t Tinside(ctx ctx) {
 	assert(0);  "invocation without proper set flag!";
 }
 
-return_t primexpr(arg_clear_t ctx) {
+return_t_passthrough primexpr(ctx_passthrough ctx) {
 
 	if (ctx.call(assignorsomething)) {
 
@@ -689,19 +691,24 @@ return_t primexpr(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t primexprnormal(arg_clear_t ctx) {
+return_t_passthrough primexprnormal(ctx ctx) {
 	ctx.flags["primexpr"_h] = "normal"_h;
 
-	return ctx.call(primexpr) ? ctx : !ctx;
+	if (ctx.call(primexpr))
+		return ctx;
+	else
+		return !ctx;
 }
-return_t primexprcall(ctx ctx) {
+return_t_passthrough primexprcall(ctx ctx) {
 	ctx.flags["primexpr"_h] = "call"_h;
 
-	return ctx.call(primexpr) ? ctx : !ctx;
+	if (ctx.call(primexpr))
+		return ctx;
+	else
+		return !ctx;
 }
-return_t param(arg_clear_t ctx);
 
-return_t abstrsubs(ctx ctx) {
+return_t_passthrough abstrsubs(ctx ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '[') {
@@ -761,10 +768,8 @@ return_t abstrsubs(ctx ctx) {
 	return !ctx;
 }
 
-return_t identifier_typedef(ctx ctx) {
+return_t_passthrough identifier_typedef(ctx_passthrough ctx) {
 	consumewhitespace();
-
-	(ctxprops&)ctx = { false, true, false };
 
 	auto last = currlexing;
 
@@ -785,10 +790,8 @@ return_t identifier_typedef(ctx ctx) {
 	return !ctx;
 }
 
-return_t typedefkey(ctx ctx) {
+return_t_passthrough typedefkey(ctx_passthrough ctx) {
 	consumewhitespace();
-
-	(ctxprops&)ctx = { false, true, false };
 
 	if (isonboundary("typedef")) {
 
@@ -802,9 +805,7 @@ return_t typedefkey(ctx ctx) {
 	return !ctx;
 }
 
-return_t assignorsomething(arg_clear_t ctx);
-
-return_t enumerator(ctx ctx) {
+return_t_passthrough enumerator(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (ctx.call(identifier)) {
@@ -824,7 +825,7 @@ return_t enumerator(ctx ctx) {
 	return !ctx;
 }
 
-return_t strcelem(arg_clear_t ctx) {
+return_t_passthrough strcelem(ctx ctx) {
 
 	ctx.flags["optinit"_h] = "bitfl"_h;
 	ctx.flags["outter"_h] = "normal"_h;
@@ -840,10 +841,8 @@ return_t strcelem(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t structorunion(ctx ctx) {
+return_t_passthrough structorunion(ctx_passthrough ctx) {
 	consumewhitespace();
-
-	(ctxprops&)ctx = { false, true, false };
 
 	bool isenum = false;
 
@@ -932,9 +931,7 @@ return_t structorunion(ctx ctx) {
 	return ctx;
 }
 
-return_t abstdeclorallqualifsqualifs(ctx ctx) {
-
-	(ctxprops&)ctx = { false, true, false };
+return_t_passthrough abstdeclorallqualifsqualifs(ctx_passthrough ctx) {
 
 	if (!ctx.matches.contains("qualiffound"_h) && !ctx.matches.contains("typefound"_h)) {
 
@@ -960,7 +957,7 @@ return_t abstdeclorallqualifsqualifs(ctx ctx) {
 	return !ctx;
 }
 
-return_t abstrbitfield(arg_clear_t ctx) {
+return_t_passthrough abstrbitfield(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == ':') {
@@ -976,7 +973,7 @@ return_t abstrbitfield(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t designator(arg_clear_t ctx) {
+return_t_passthrough designator(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '[') {
@@ -1003,7 +1000,7 @@ return_t designator(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t initializer(arg_clear_t ctx) {
+return_t_passthrough initializer(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (ctx.call(assignorsomething)) {
@@ -1037,7 +1034,7 @@ return_t initializer(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t abstrinitialization(arg_clear_t ctx) {
+return_t_passthrough abstrinitialization(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '=') {
@@ -1053,7 +1050,7 @@ return_t abstrinitialization(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t optinit(arg_clear_t ctx) {
+return_t_passthrough optinit(ctx_passthrough ctx) {
 
 	switch (ctx.flags["optinit"_h]) if (0);
 	else if (0) {
@@ -1070,11 +1067,12 @@ return_t optinit(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t abstdeclorallqualifs(arg_clear_t ctx) {
+return_t_passthrough abstdeclorallqualifs(ctx ctx) {
 	consumewhitespace();
 
-	auto lastrecord = ctx.record;
-	ctx.record.clear();
+	records.push_back({});
+
+	auto lastrecord = --records.end();
 
 	++recording;
 	
@@ -1086,13 +1084,11 @@ return_t abstdeclorallqualifs(arg_clear_t ctx) {
 	}
 	else {
 		--recording;
-		ctx.record = lastrecord;
+		records.pop_back();
 		return !ctx;
 	}
 
-	auto qualifrecord = ctx.record;
-
-	ctx.record  = lastrecord;
+	auto qualifrecord = extract_last_record(lastrecord);
 
 	--recording;
 
@@ -1104,7 +1100,7 @@ return_t abstdeclorallqualifs(arg_clear_t ctx) {
 	if (ctx.call(abstdecl)) {
 		do {
 			ctx.doit("enddeclaration");
-			ctx.replay(qualifrecord);
+			ctx.replay(std::move(qualifrecord));
 			ctx.doit("endqualifs");
 			ctx.call(optinit);
 			if (*currlexing != ',' || ctx.flags["outter"_h] != "normal"_h) break;
@@ -1125,7 +1121,7 @@ return_t abstdeclorallqualifs(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t param(arg_clear_t ctx) {
+return_t_passthrough param(ctx ctx) {
 
 	ctx.flags["outter"_h] = "params"_h;
 	ctx.flags["opt"_h] = false;
@@ -1136,7 +1132,7 @@ return_t param(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t decl(arg_clear_t ctx) {
+return_t_passthrough decl(ctx ctx) {
 
 	ctx.flags["outter"_h] = "normal"_h;
 	ctx.flags["opt"_h] = false;
@@ -1156,7 +1152,7 @@ return_t decl(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t declopt(arg_clear_t ctx) {
+return_t_passthrough declopt(ctx ctx) {
 
 	ctx.flags["outter"_h] = "normal"_h;
 	ctx.flags["opt"_h] = true;
@@ -1179,13 +1175,13 @@ return_t declopt(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t cprogram(arg_clear_t ctx) {
+return_t_passthrough cprogram(ctx_passthrough ctx) {
 	while (ctx.call(declopt));
 	
 	return ctx;
 }
 
-return_t typename_(arg_clear_t ctx) {
+return_t_passthrough typename_(ctx ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -1219,7 +1215,7 @@ return_t typename_(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t inner(arg_clear_t ctx) {
+return_t_passthrough inner(ctx_passthrough ctx) {
 
 	if(ctx.call(stringlit) || ctx.call(floating) || ctx.call(numberliteral) || ctx.call(numberliteral) || ctx.call(ident))
 
@@ -1228,7 +1224,7 @@ return_t inner(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t inparenths(arg_clear_t ctx) {
+return_t_passthrough inparenths(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '(') {
@@ -1243,7 +1239,7 @@ return_t inparenths(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t postfix(arg_clear_t ctx) {
+return_t_passthrough postfix(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	switch (*currlexing) if (0);
@@ -1294,7 +1290,7 @@ return_t postfix(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t unary(arg_clear_t ctx) {
+return_t_passthrough unary(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (ranges::contains(std::array{ "++"_h, "--"_h }, stringhash(std::string{ currlexing, currlexing + 2 }.c_str()))) {
@@ -1338,45 +1334,50 @@ return_t unary(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t unaryexpr(arg_clear_t ctx) {
+return_t_passthrough unaryexpr(ctx_passthrough ctx) {
 
 	if (ctx.call(inner) || ctx.call(inparenths)) {
 		while (ctx.call(postfix));
 		return ctx;
 	}
 	else {
-		return ctx.call(unary) ? ctx : !ctx;
+		if (ctx.call(unary))
+			return ctx;
+		else
+			return !ctx;
 	}
 }
 
-return_t castexpr(arg_clear_t ctx) {
+return_t_passthrough castexpr(ctx_passthrough ctx) {
 
 	if (ctx.call(typenamerev)) {
 		return ctx;
 	}
 	else {
-		return ctx.call(unaryexpr) ? ctx : !ctx;
+		if (ctx.call(unaryexpr))
+			return ctx;
+		else
+			return !ctx;
 	}
 }
 
-return_t typenamerev(arg_clear_t ctx) {
+return_t_passthrough typenamerev(ctx_passthrough ctx) {
 
-	auto lastrec = ctx.record;
-	ctx.record.clear();
+	records.push_back({});
+	auto lastrec = --records.end();
 
 	++recording;
 
 	if (ctx.call(typename_)) {
 		--recording;
-		auto tpnmrec = ctx.record;
-		ctx.record = lastrec;
+		
 		ctx.call(castexpr);
-		ctx.replay(tpnmrec);
+		ctx.replay(extract_last_record(lastrec));
 		ctx.doit("applycast");
 		return ctx;
 	}
 
-	ctx.record = lastrec;
+	records.pop_back();
 
 	--recording;
 
@@ -1384,9 +1385,7 @@ return_t typenamerev(arg_clear_t ctx) {
 }
 
 
-return_t binop(ctx ctx) {
-
-	(ctxprops&)ctx = { false, false, false };
+return_t_passthrough binop(ctx_passthrough ctx) {
 
 	if (ctx.matches.contains("addopraw"_h))
 		goto mulopraw;
@@ -1514,8 +1513,7 @@ mulopraw:
 	return !ctx;
 }
 
-return_t binopplusrest(ctx ctx) {
-	(ctxprops&)ctx = { true, false, false };
+return_t_passthrough binopplusrest(ctx ctx) {
 
 	if (ctx.call(binop)) {
 		ctx.call(castexpr);
@@ -1528,8 +1526,7 @@ return_t binopplusrest(ctx ctx) {
 	return !ctx;
 }
 
-return_t orlogiorsomething(ctx ctx) {
-	(ctxprops&)ctx = { true, false, false };
+return_t_passthrough orlogiorsomething(return_t_passthrough ctx) {
 
 	if (ctx.call(binopplusrest)) {
 		while (ctx.call(binopplusrest));
@@ -1538,7 +1535,7 @@ return_t orlogiorsomething(ctx ctx) {
 	return !ctx;
 }
 
-return_t ternaryrest(arg_clear_t ctx) {
+return_t_passthrough ternaryrest(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '?') {
@@ -1562,11 +1559,11 @@ return_t ternaryrest(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t ternaryorsomething(arg_clear_t ctx) {
+return_t_passthrough ternaryorsomething(ctx_passthrough ctx) {
 
-	auto lastrec = ctx.record;
+	records.push_back({});
 
-	ctx.record.clear();
+	auto lastrec = --records.end();
 
 	++recording;
 
@@ -1576,38 +1573,29 @@ return_t ternaryorsomething(arg_clear_t ctx) {
 
 		ctx.doit("end_ternary");
 
-		if(recording)
-			ctx.record.splice(ctx.record.begin(), lastrec);
-
 		return ctx;
 	}
-
+	records.pop_back();
 	--recording;
-
-	ctx.record = lastrec;
 
 	return !ctx;
 }
 
-return_t ternarylogicopt(arg_clear_t ctx) {
+return_t_passthrough ternarylogicopt(ctx_passthrough ctx) {
 
 	if (ctx.call(orlogiorsomething)) {
-		auto rec = ctx.record;
 		--recording;
-		ctx.record.clear();
 		if (ctx.flags["containbranch"_h]) {
 			ctx.doit("begin_binary");
 		}
-		ctx.replay(rec);
+		ctx.replay(extract_last_record());
 		if (ctx.flags["containbranch"_h]) {
 			ctx.doit("end_binary");
 		}
 	}
 	else {
-		auto rec = ctx.record;
 		--recording;
-		ctx.record.clear();
-		ctx.replay(rec);
+		ctx.replay(extract_last_record());
 	}
 	ctx.flags.erase("containbranch"_h);
 
@@ -1616,12 +1604,9 @@ return_t ternarylogicopt(arg_clear_t ctx) {
 	return ctx;
 }
 
-return_t assignorsomething(arg_clear_t ctx) {
+return_t_passthrough assignorsomething(ctx_passthrough ctx) {
 
-	auto lastrec = ctx.record;
-
-	ctx.record.clear();
-
+	records.push_back({});
 	++recording;
 
 	if (ctx.call(unaryexpr)) {
@@ -1635,14 +1620,9 @@ return_t assignorsomething(arg_clear_t ctx) {
 			ctx.matches["binoplast"_h] = std::string{ currlexing, currlexing + 2 };
 			currlexing += 2;
 		assignrest:
+
 			--recording;
-
-			auto toreplay = ctx.record;
-			ctx.record.clear();
-
-			toreplay.splice(toreplay.begin(), lastrec);
-
-			ctx.replay(toreplay);
+			ctx.replay(extract_last_record());
 
 			ctx.call(assignorsomething);
 			ctx.doit("binary");
@@ -1652,28 +1632,20 @@ return_t assignorsomething(arg_clear_t ctx) {
 
 		ctx.call(ternarylogicopt);
 
-		if (recording)
-			ctx.record.splice(ctx.record.begin(), lastrec);
-
 		return ctx;
 	}
 	else if (ctx.call(typenamerev)) {
 		ctx.call(ternarylogicopt);
 
-		if (recording)
-			ctx.record.splice(ctx.record.begin(), lastrec);
-
 		return ctx;
 	}
 
 	--recording;
-	
-	ctx.record = lastrec;
 
 	return !ctx;
 }
 
-return_t jumpstatement(arg_clear_t ctx) {
+return_t_passthrough jumpstatement(ctx ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -1747,7 +1719,7 @@ return_t jumpstatement(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t iterationstatement(arg_clear_t ctx) {
+return_t_passthrough iterationstatement(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -1865,7 +1837,7 @@ return_t iterationstatement(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t exprstatement(arg_clear_t ctx) {
+return_t_passthrough exprstatement(ctx_passthrough ctx) {
 	ctx.call(primexprnormal);
 
 	if (*currlexing == ';') {
@@ -1879,7 +1851,7 @@ return_t exprstatement(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t compoundstatement(arg_clear_t ctx) {
+return_t_passthrough compoundstatement(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	if (*currlexing == '{') {
@@ -1904,7 +1876,7 @@ return_t compoundstatement(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t selectionstatement(arg_clear_t ctx) {
+return_t_passthrough selectionstatement(ctx_passthrough ctx) {
 	consumewhitespace();
 
 	auto last = currlexing;
@@ -1973,7 +1945,7 @@ return_t selectionstatement(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t label(arg_clear_t ctx) {
+return_t_passthrough label(ctx_passthrough ctx) {
 	auto last = currlexing;
 
 	if (ctx.call(identifier)) switch (stringhash(ctx.matches["ident"_h].c_str())) if (0);
@@ -2030,15 +2002,21 @@ return_t label(arg_clear_t ctx) {
 	return !ctx;
 }
 
-return_t statementinner(arg_clear_t ctx);
+return_t_passthrough statementinner(ctx_passthrough ctx);
 
-return_t statement(arg_clear_t ctx) {
+return_t_passthrough statement(ctx_passthrough ctx) {
 	while (ctx.call(label));
 
-	return ctx.call(statementinner) ? ctx : !ctx;
+	if (ctx.call(statementinner))
+		return ctx;
+	else
+		return !ctx;
 }
 
-return_t statementinner(arg_clear_t ctx) {
+return_t_passthrough statementinner(ctx_passthrough ctx) {
 
-	return ctx.call(exprstatement) || ctx.call(compoundstatement) || ctx.call(selectionstatement) || ctx.call(iterationstatement) || ctx.call(jumpstatement) ? ctx : !ctx;
+	if (ctx.call(exprstatement) || ctx.call(compoundstatement) || ctx.call(selectionstatement) || ctx.call(iterationstatement) || ctx.call(jumpstatement))
+		return ctx;
+	else
+		return !ctx;
 }

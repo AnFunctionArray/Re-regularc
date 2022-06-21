@@ -4,39 +4,58 @@ extern std::string subject;
 
 extern "C" void docall(const char* name, size_t szname, void* phashmap);extern size_t recording;
 
-struct ctxprops {
-	bool filtermatchesout = true;
-	bool filterflagsout = true;
-	bool filterrecordout = false;
-};
-
 typedef std::list<std::pair<std::string, std::unordered_map<unsigned, std::string>>> record_t;
 
-struct ctx : ctxprops {
+extern record_t records;
+
+struct ctx_neg {};
+
+void doit(std::string fnname, void* phashmap, record_t& refrecord);
+
+static record_t extract_last_record(record_t::iterator start=records.end()) {
+	if (start == records.end()) {
+		start = --std::find_if(records.rbegin(), records.rend(), [&](auto& elem) {
+			return elem.first.empty();
+			}).base();
+	}
+	record_t ret;
+
+	ret.splice(ret.end(), records, start, records.end());
+
+	ret.pop_front();
+
+	return ret;
+
+}
+
+struct ctx {
 
 	bool result = true;
-	record_t record;
 	std::unordered_map<unsigned, std::string> matches;
 	std::unordered_map<unsigned, unsigned> flags;
 
-	template<typename argT>
-	bool call(argT what) {
+	template<class argT>
+	bool call(struct return_t_passthrough what(argT)) {
+		auto res = what(*this);
+
+		return res.result;
+	}
+
+	template<class argT>
+	bool call(ctx what(argT)) {
 		auto res = what(*this);
 
 		if (res.result) {
-			if (!res.filtermatchesout) {
-				matches = res.matches;
+			if (!res.matches.empty()) {
+				matches.merge(res.matches);
 			}
-			if (!res.filterflagsout) {
-				flags = res.flags;
-			}
-			if (!res.filterrecordout) {
-				record = res.record;
+			if (!res.filterflagsout.empty()) {
+				flags.merge(res.flags);
 			}
 		}
 
 		return res.result;
-	};
+	}
 
 	void doit(std::string fnname) {
 		auto matchescopy = matches;
@@ -48,36 +67,35 @@ struct ctx : ctxprops {
 			}
 		}
 		else {
-			record.push_back({ fnname.c_str(), matches });
+			records.push_back({ fnname.c_str(), matches });
 		}
 	}
 
-	void replay(record_t what) {
+	void replay(record_t &&what) {
 		size_t i = 0;
 		if (recording) {
-			record.splice(record.end(), what);
+			records.splice(records.end(), what);
 		}
 		else for (const auto& call : what) {
 			::doit(call.first, (void*)&call.second, what);
 			++i;
 		}
-
-		//what.clear();
 	}
 
-	struct ctx& operator!() {
+	struct ctx_neg operator!() {
+		return {};
+	}
+};
+
+typedef ctx& ctx_passthrough;
+
+struct return_t_passthrough : ctx{
+	return_t_passthrough(const ctx& in) {
+		result = true;
+	}
+	return_t_passthrough(const struct ctx_neg& in) {
 		result = false;
-		return *this;
 	}
 };
 
-using return_t = ctx;
-
-struct arg_clear_t : ctx {
-	arg_clear_t(const ctx& arg) {
-		flags = arg.flags;
-		record = arg.record;
-	}
-};
-
-return_t cprogram(arg_clear_t ctx);
+return_t_passthrough cprogram(ctx_passthrough ctx);
