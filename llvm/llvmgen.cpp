@@ -63,7 +63,6 @@
 //#include <oniguruma.h>
 #include <llvm/ADT/Hashing.h>
 #include <llvm/Support/FileSystem.h>
-#include "../lexer/lexer.hpp"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -2133,7 +2132,7 @@ void printvaltype(val val) {
 	std::cout << name << " is " << rso.str() << std::endl;
 }
 
-DLL_EXPORT void obtainvalbyidentifier(hashmapcustom<unsigned, std::string>& hashmap) {
+DLL_EXPORT void obtainvalbyidentifier(std::unordered_map<unsigned, std::string>& hashmap) {
 	obtainvalbyidentifier(hashmap["ident"_h]);
 }
 
@@ -2224,14 +2223,14 @@ found:
 	return var;
 }
 
-DLL_EXPORT void begin_initializer(hashmapcustom<unsigned, std::string>& hashes) {
+DLL_EXPORT void begin_initializer(std::unordered_map<unsigned, std::string>& hashes) {
 	if (scopevar.size() == 1)
 		beginconstantexpr();
 }
 
 static llvm::SmallVector<llvm::Constant*> constantimmidiates;
 
-DLL_EXPORT void finalize_initializer(hashmapcustom<unsigned, std::string>& hashes) {
+DLL_EXPORT void finalize_initializer(std::unordered_map<unsigned, std::string>& hashes) {
 	if (currtypevectorbeingbuild.back().p->back().type.front().uniontype == type::ARRAY) {
 		if (scopevar.size() > 1) {
 			auto iterimm = ++immidiates.begin();
@@ -2282,11 +2281,11 @@ DLL_EXPORT void extract() {
 	}
 }
 
-DLL_EXPORT void addplaintexttostring(hashmapcustom<unsigned, std::string>& hashes) {
+DLL_EXPORT void addplaintexttostring(std::unordered_map<unsigned, std::string>& hashes) {
 	currstring += std::string{ hashes["textraw"_h] };
 }
 
-DLL_EXPORT void addescapesequencetostring(hashmapcustom<unsigned, std::string>& hashes) {
+DLL_EXPORT void addescapesequencetostring(std::unordered_map<unsigned, std::string>& hashes) {
 	std::string escape{ hashes["escaperaw"_h] };
 
 	switch (stringhash(escape.c_str())) {
@@ -2421,7 +2420,7 @@ static bool comparefunctiontypeparameters(::type fntypeone, ::type fntypetwo) {
 	return iterparamsone == paramslistone.end() && iterparamstwo == paramslisttwo.end();
 }
 
-static hashmapcustom<unsigned, bool> overloadflag;
+static std::unordered_map<unsigned, bool> overloadflag;
 
 void addvar(var& lastvar, llvm::Constant* pInitializer) {
 
@@ -2496,7 +2495,7 @@ void addvar(var& lastvar, llvm::Constant* pInitializer) {
 
 extern std::pair<std::string, std::string> currstruct;
 
-DLL_EXPORT void endqualifs(hashmapcustom<unsigned, std::string>&& hashes);
+DLL_EXPORT void endqualifs(std::unordered_map<unsigned, std::string>&& hashes);
 
 static std::list<std::list<var>>::iterator laststruc;
 
@@ -2785,7 +2784,7 @@ exec_member:
 	return true;
 }
 
-DLL_EXPORT void memberaccess(hashmapcustom<unsigned, std::string>& hashentry) {
+DLL_EXPORT void memberaccess(std::unordered_map<unsigned, std::string>& hashentry) {
 	bool indirection = hashentry["arrowordotraw"_h] == "->";
 
 	if (indirection) phndl->applyindirection();
@@ -3200,7 +3199,7 @@ DLL_EXPORT void beginscope() {
 
 void fixuplabels();
 
-DLL_EXPORT void endreturn(hashmapcustom<unsigned, std::string>&& hashes);
+DLL_EXPORT void endreturn(std::unordered_map<unsigned, std::string>&& hashes);
 
 DLL_EXPORT void endscope() {
 	// nonconstructable.mainmodule.
@@ -3356,11 +3355,11 @@ llvm::BranchInst* splitbb(const char* identifier, size_t szident) {
 	return preturn;
 }
 
-DLL_EXPORT void splitbb(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void splitbb(std::unordered_map<unsigned, std::string>&& hashes) {
 	splitbb(STRING_TO_PTR_AND_SZ(hashes["lbl"_h]));
 }
 
-DLL_EXPORT void gotolabel(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void gotolabel(std::unordered_map<unsigned, std::string>&& hashes) {
 	branches.push_back({ llvmbuilder.CreateBr(pcurrblock.back()), hashes["gtid"_h] });
 }
 
@@ -3573,7 +3572,7 @@ rest:
 		val{ calleevalntype.type, pval });
 }
 
-DLL_EXPORT void endreturn(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void endreturn(std::unordered_map<unsigned, std::string>&& hashes) {
 	//llvmbuilder.SetInsertPoint (pcurrblock.back ());
 	if (!hashes["returnval"_h].empty()) {
 		auto currfunctype = currfunc->type;
@@ -3583,11 +3582,11 @@ DLL_EXPORT void endreturn(hashmapcustom<unsigned, std::string>&& hashes) {
 	}
 	else {
 		insertinttoimm("0", sizeof "1" - 1, "", 0, 3);
-		endreturn({ std::pair{"returnval"_h, "0"}});
+		endreturn({ {"returnval"_h, "0"} });
 	}
 }
 
-DLL_EXPORT void endfunctionparamdecl(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void endfunctionparamdecl(std::unordered_map<unsigned, std::string>&& hashes) {
 
 	//for (auto& a : *currtypevectorbeingbuild.back().p)
 	//	a.pllvmtype = buildllvmtypefull(a.type);
@@ -3616,9 +3615,9 @@ DLL_EXPORT void endfunctionparamdecl(hashmapcustom<unsigned, std::string>&& hash
 	currtypevectorbeingbuild.back().p->push_back(lastvar);
 }*/
 
-DLL_EXPORT void addptrtotype(hashmapcustom<unsigned, std::string>&& hashes);
+DLL_EXPORT void addptrtotype(std::unordered_map<unsigned, std::string>&& hashes);
 
-DLL_EXPORT void endqualifs(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void endqualifs(std::unordered_map<unsigned, std::string>&& hashes) {
 	auto& lastvar = currtypevectorbeingbuild.back().p->back();
 
 	auto& refbasic = lastvar.type.back().spec.basicdeclspec.basic;
@@ -3667,7 +3666,7 @@ DLL_EXPORT void startfunctionparamdecl() {
 		currdecltypeenum::PARAMS
 		&& currtypevectorbeingbuild.back().p->back().type.size() == 1)
 
-		addptrtotype(hashmapcustom<unsigned, std::string>{});
+		addptrtotype(std::unordered_map<unsigned, std::string>{});
 
 	currtypevectorbeingbuild.back().p->back().type.push_back(
 		{ type::FUNCTION });
@@ -3698,7 +3697,7 @@ DLL_EXPORT void addsubtotype() {
 	hndlcnstexpr.immidiates.pop_back();
 }
 
-DLL_EXPORT void addptrtotype(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void addptrtotype(std::unordered_map<unsigned, std::string>&& hashes) {
 
 	type ptrtype{ type::POINTER };
 
@@ -3768,7 +3767,7 @@ DLL_EXPORT void startmodule(const char* modulename, size_t szmodulename) {
 
 		std::string value;
 
-		hashmapcustom<unsigned, std::string> map;
+		std::unordered_map<unsigned, std::string> map;
 
 		do {
 			std::getline(replay, value, '\0');
@@ -3830,7 +3829,7 @@ DLL_EXPORT void dumpabrupt() {
 	nonconstructable.mainmodule.print(outputll, nullptr);
 }
 
-DLL_EXPORT void unary(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void unary(std::unordered_map<unsigned, std::string>&& hashes) {
 	std::string imm;
 
 	imm.assign(hashes["unop"_h]);
@@ -3874,7 +3873,7 @@ DLL_EXPORT void unary(hashmapcustom<unsigned, std::string>&& hashes) {
 	phndl = phpriorhndlfn(phndl);
 }
 
-DLL_EXPORT void unaryincdec(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void unaryincdec(std::unordered_map<unsigned, std::string>&& hashes) {
 	std::string immpostfix = hashes["postfixarithraw"_h];
 
 	std::string imm = !immpostfix.empty() ? immpostfix : hashes["prefixarithraw"_h];
@@ -3914,7 +3913,7 @@ DLL_EXPORT void unaryincdec(hashmapcustom<unsigned, std::string>&& hashes) {
 		phndl = phpriorhndl(phndl);
 }
 
-DLL_EXPORT void binary(hashmapcustom<unsigned, std::string>&& hashes) {
+DLL_EXPORT void binary(std::unordered_map<unsigned, std::string>&& hashes) {
 	std::string imm;
 
 	imm.assign(hashes["binoplast"_h]);
@@ -4278,7 +4277,7 @@ virtual void start_str_4() {
 	//a->offset_vector[n * 2] = a->offset_vector[n * 2 + 1] = -1;
 }
 #endif
-DLL_EXPORT void num_lit(hashmapcustom<unsigned, std::string> &hashes) {
+DLL_EXPORT void num_lit(std::unordered_map<unsigned, std::string> &hashes) {
 	unsigned int type;
 	//int n = getnameloc("numberliteralraw", *ptable);
 
@@ -4393,11 +4392,11 @@ virtual void identifier_typedef_38() {
 }
 #endif
 
-/*DLL_EXPORT void add_typedef_to_decl(hashmapcustom<unsigned, std::string>&& hashes) {
+/*DLL_EXPORT void add_typedef_to_decl(std::unordered_map<unsigned, std::string>&& hashes) {
 	currtypevectorbeingbuild.back().p->back().type.front().spec.basicdeclspec.basic[3] = hashes["typedefnmmatched"_h];
 }*/
 
-DLL_EXPORT void identifier_decl(hashmapcustom<unsigned, std::string> && hashes) {
+DLL_EXPORT void identifier_decl(std::unordered_map<unsigned, std::string> && hashes) {
 	//int n = getnameloc("ident", *ptable) + 1;
 
 	//handledeclident({ (char*)GROUP_PTR_AND_SZ(n) });
@@ -4474,24 +4473,24 @@ virtual void end_param_list_48() {
 
 }
 #endif
-DLL_EXPORT void add_type(hashmapcustom<unsigned, std::string>&hashes) {
+DLL_EXPORT void add_type(std::unordered_map<unsigned, std::string>&hashes) {
 	auto& lastvar = currtypevectorbeingbuild.back().p->back();
 	parsebasictype({ hashes["typefound"_h] }, lastvar.type.back().spec.basicdeclspec);
 }
 
-DLL_EXPORT void add_qualif(hashmapcustom<unsigned, std::string>&hashes) {
+DLL_EXPORT void add_qualif(std::unordered_map<unsigned, std::string>&hashes) {
 	auto& lastvar = currtypevectorbeingbuild.back().p->back();
 	//lastvar.linkage = hashes["storageclass"_h];
 	parsebasictype({ hashes["qualiffound"_h] }, lastvar.type.back().spec.basicdeclspec);
 }
 
-DLL_EXPORT void add_tag(hashmapcustom<unsigned, std::string>&hashes) {
+DLL_EXPORT void add_tag(std::unordered_map<unsigned, std::string>&hashes) {
 	auto& lastvar = currtypevectorbeingbuild.back().p->back();
 	lastvar.type.back().spec.basicdeclspec.basic[0] = hashes["structorunionlast"_h];
 	lastvar.type.back().spec.basicdeclspec.basic[3] = hashes["lasttag"_h];
 }
 
-DLL_EXPORT void enddeclaration(hashmapcustom<unsigned, std::string>&hashes) {
+DLL_EXPORT void enddeclaration(std::unordered_map<unsigned, std::string>&hashes) {
 	auto& lastvar = currtypevectorbeingbuild.back().p->back();
 
 	std::rotate(lastvar.type.begin(), ++lastvar.type.begin(), lastvar.type.end());
@@ -4507,7 +4506,7 @@ DLL_EXPORT void enddeclaration(hashmapcustom<unsigned, std::string>&hashes) {
 	//currtypevectorbeingbuild.pop_back();
 }
 //virtual void unused_50() { };
-DLL_EXPORT void add_literal(hashmapcustom<unsigned, std::string> &hashes) {
+DLL_EXPORT void add_literal(std::unordered_map<unsigned, std::string> &hashes) {
 	if (hashes["begincharliteral"_h] == "\"") constructstring();
 	else {
 		std::stringstream ssstream;
@@ -4555,7 +4554,7 @@ virtual void ident_struc_58() {
 
 	}
 #endif
-DLL_EXPORT void struc_or_union_body(hashmapcustom<unsigned, std::string> &hashes) {
+DLL_EXPORT void struc_or_union_body(std::unordered_map<unsigned, std::string> &hashes) {
 	//auto& lastvar = currtypevectorbeingbuild.back().p->back();
 
 	var tmp;
@@ -4604,7 +4603,7 @@ const llvm::fltSemantics& getfltsemfromtype(::type flttype) {
 		(assert(flttype.spec.basicdeclspec.basic[1] == "float"),
 			llvm::APFloatBase::IEEEsingle());
 }
-DLL_EXPORT void collect_float_literal(hashmapcustom<unsigned, std::string> &hashes) {
+DLL_EXPORT void collect_float_literal(std::unordered_map<unsigned, std::string> &hashes) {
 	std::string wholepart = hashes["whole"_h],
 		fractionpart = hashes["fraction"_h],
 		exponent_sign = hashes["signexp"_h],
@@ -4671,7 +4670,7 @@ virtual void unused_86() { }
 virtual void begin_nested_expr_87() { }
 virtual void end_nested_expr_88() { }
 #endif
-DLL_EXPORT void add_ident_to_enum_def(hashmapcustom<unsigned, std::string> &hashes) {
+DLL_EXPORT void add_ident_to_enum_def(std::unordered_map<unsigned, std::string> &hashes) {
 	var tmp;
 	type enumtype{ type::BASIC };
 	enumtype = basicint;
@@ -4689,7 +4688,7 @@ DLL_EXPORT void add_ident_to_enum_def(hashmapcustom<unsigned, std::string> &hash
 
 	enums.back().back().memberconstants.push_back(--scopevar.back().end());
 }
-DLL_EXPORT void begin_enumerator_def(hashmapcustom<unsigned, std::string> && hashes) {
+DLL_EXPORT void begin_enumerator_def(std::unordered_map<unsigned, std::string> && hashes) {
 	//begin_enumerator_decl(pargs, szargs);
 	enums.back().push_back({ hashes["lasttag"_h], {} });
 	//add_tag(hashes);
@@ -4708,7 +4707,7 @@ DLL_EXPORT void end_without_ass_to_enum_def() {
 	enums.back().back().memberconstants.back()->constant = llvm::ConstantInt::get(llvmctx, llvm::APInt(32, enums.back().back().maxcount++));
 }
 
-DLL_EXPORT void global_han(const char* fnname, hashmapcustom<unsigned, std::string> && hashes) {
+DLL_EXPORT void global_han(const char* fnname, std::unordered_map<unsigned, std::string> && hashes) {
 #ifdef ALLOW_UNDEFINED_REFS
 	if (plastnotfound && scopevar.size() > 1 && !immidiates.empty()) [[unlikely]] {
 		if (std::string{ fnname } != "startfunctioncall") { //if not immidiately start a function call
@@ -4769,7 +4768,7 @@ extern "C" {
 
 DLL_EXPORT void docall(const char*, size_t, void*);
 
-void call(hashmapcustom<unsigned, std::string> hash, std::string callname) {
+void call(std::unordered_map<unsigned, std::string> hash, std::string callname) {
 	//SvREFCNT_dec(hash);
 
 	docall(callname.c_str(), callname.length(), &hash);
@@ -4777,7 +4776,7 @@ void call(hashmapcustom<unsigned, std::string> hash, std::string callname) {
 	//SvREFCNT_dec(hash);
 }
 
-std::queue<std::pair<hashmapcustom<unsigned, std::string>, std::string>> callstack;
+std::queue<std::pair<std::unordered_map<unsigned, std::string>, std::string>> callstack;
 
 //extern "C" PerlInterpreter * my_perl;
 
@@ -4798,7 +4797,7 @@ extern "C" void* wait_for_call(void*) {
 	return nullptr;
 }
 
-static std::list<std::pair<hashmapcustom<unsigned, std::string>, std::string>> recordstack;
+static std::list<std::pair<std::unordered_map<unsigned, std::string>, std::string>> recordstack;
 #if 0
 DLL_EXPORT void do_callout(SV * in, HV * hash)
 {
@@ -4809,7 +4808,7 @@ DLL_EXPORT void do_callout(SV * in, HV * hash)
 	SV* value;
 	hv_iterinit(hash);
 	const char nill[1] = { '\0' };
-	hashmapcustom<unsigned, std::string> map;
+	std::unordered_map<unsigned, std::string> map;
 	while (value = hv_iternextsv(hash, &key, &key_length)) {
 		pinstr = SvPVutf8(value, inlen);
 		if (!inlen) continue;
