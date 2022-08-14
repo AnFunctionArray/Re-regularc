@@ -54,12 +54,25 @@ CODE:
     #RETVAL
 =cut
 
-extern callout(SV *in, HV *hash, U32 pos)
+U32 callout(SV *in, HV *hash, U32 pos)
 CODE:
     {
-        extern void do_callout(SV* in, HV* hash, U32 pos);
+        extern U32 do_callout(SV* in, HV* hash, U32 pos);
 
-        do_callout(in, hash, pos);
+        RETVAL = do_callout(in, hash, pos);
+    }
+OUTPUT:
+      RETVAL
+
+
+void
+initthread1(U32 baseposarg)
+CODE:
+    {
+        extern __thread U32 matchpos, basepos;
+        //printf("print digit %d\n", baseposarg);
+	    basepos = baseposarg;
+	    initthread();
     }
 
 =pod

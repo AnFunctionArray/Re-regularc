@@ -1,6 +1,11 @@
 #!/usr/bin/perl
 
 use re 'eval';
+use threads;
+use threads::shared;
+
+my @threads;
+my $nthreads :shared = 0;
 
 BEGIN{push @INC, "."};
 BEGIN{push @INC, "./misc"};
@@ -24,6 +29,7 @@ $genml = $ENV{'GENMLJSON'};
 $debug = $ENV{'DEBUG'};
 $silent = $ENV{'SILENT'};
 $lineonly = $ENV{'LINEONLY'};
+$maxthreads = $ENV{'MAXTHREADS'};
 
 #my sub Dumper {"\n"}
 
@@ -89,6 +95,31 @@ sub existsflag {
 
 print Dumper @ARGV;
 
+sub endfndef {
+
+}
+
+sub startpotfndef {
+    #print2 "nthr $nthreads\n"; 
+    do {
+        lock($nthreads);
+        goto end if($nthreads < $maxthreads);
+    } while(sleep(0));
+ end:
+    lock($nthreads);
+    for my $i (0 .. $#threads) {
+        if($threads[$i] eq undef) {
+            @threads = splice @threads, $i;
+        }
+    }
+    ++$nthreads;
+    #preparethread() if(defined &preparethread);
+    my $slice = substr $subject, pos();
+    print2 "pos is " . pos() . "\n";
+    push @threads, threads->create(\&execmain, $nthreads, $slice, scalar(pos()));
+    waitforthread() if(defined &waitforthread);
+}
+
 #open my $fhnull, '>', "/dev/null" or die "error opening $filename: $!";
 
 $oldfh = select(STDERR);
@@ -100,7 +131,7 @@ my $inpar = qr{(?<inpar>\((?<inner>(([^][()\\]|\\.)++|(?&inpar)
 $filename = $ARGV[0];
 open my $fh, '<', $filename or die "error opening $filename: $!";
 
-my $subject = do { local $/; <$fh> };
+$subject = do { local $/; <$fh> };
 
 close $fh;
 =begin
@@ -455,20 +486,62 @@ if(not $isnested)
         @typedefidentifiersvector = eval { require $ENV{'REPLAY'} . ".txt"};
     }
     my $flind = 1;
-    while(1) {
-        $regexfinal = qr{(?(DEFINE)$mainregexdefs)^(*COMMIT)(?&$entryregex)*+$}sxxo;
-        eval {$subject =~ m{$regexfinal}sxx};
-        if($@) {
-            warn $@;
-            undef $facet;
-            exit
-        } else {
-            $filename = $ARGV[$flind++];
-            open my $fh, '<', $filename or last;
+    sub execmain {
+        my $nthread = $_[0];
+        my $subject = $_[1];
+        my $currregex;
+        print2 "is sep: " . scalar($_[2]) . "\n";
+        initthread(scalar($_[2])) if(defined &initthread and $nthread);
+        #while(1) {
+            if(!$nthread) {
+                $regexfinal //= qr{(?(DEFINE)$mainregexdefs)^(*COMMIT)(?&cprogramfast)*+$}sxxo;
+                $currregex = $regexfinal;
+            } else {
+                $regexfinalthread //= qr{(?(DEFINE)$mainregexdefs)^(*COMMIT)(?&compoundstatement)}sxxo;
+                $currregex = $regexfinalthread;
+            }
+            eval {$subject =~ m{$currregex}sxx};
+            print2 "subject is $subject";
+=begin
+            if($@) {
+                warn $@;
+                undef $facet;
+                exit
+            } else {
+                $filename = $ARGV[$flind++];
+                open my $fh, '<', $filename or last;
 
-            $subject = do { local $/; <$fh> };
+                $subject = do { local $/; <$fh> };
+            }
+=cut
+        #}
+
+        if(!$nthread) {
+            print2 "full is $&";
+            waitforthreads();
+        } else {
+            if($@) {
+                endmoduleabrupt() if(defined &endmoduleabrupt);
+            }
+            else {
+                endmodule() if(defined &endmodule);
+            }
+            decnthreads($nthread);
         }
     }
+
+    sub decnthreads {
+        lock($nthreads);
+        $threads[$_[0]] = undef;
+        $nthreads--;
+    }
+
+    sub waitforthreads {
+        print2 "nthreads - $nthreads - $#threads\n";
+        $_->join for @threads;
+    }
+
+    execmain(0, $subject);
 
     if($ENV{'RECORD'}) {
         $silent = 0;
@@ -657,6 +730,7 @@ sub callcommon {
     #    print $i . "\n";
     #}
     my $res=1;
+    my $rescall=0;
     eval {
         if(not $facet) {
             $funcnm->($captures, $flags, \$res) 
@@ -664,7 +738,12 @@ sub callcommon {
     };
 
     print2 "not triggered\n" if(not $res);
-    callout($funcnm, $captures, scalar($currpos)) if(defined &callout and not $facet and $res);
+    $rescall = callout($funcnm, $captures, scalar($currpos)) if(defined &callout and not $facet and $res);
+    print2 "rescall $rescall\n";
+    if($rescall) {
+        die;
+    }
+    
     return $res;
 }
 

@@ -5,6 +5,8 @@
 #ifdef NDEBUG
 #define NDEBUGSTATE
 #endif
+#include <setjmp.h>
+extern __thread jmp_buf docalljmp;
 
 #if !defined(_WIN32) & !defined(_WIN64)
 //#include <pcre2.h>
@@ -245,7 +247,9 @@ struct retgetnamevalue getnamevalue(const char* nametoget) {
 #include <perl.h>	/* from the Perl distribution     */
 #include <XSUB.h>
 
-XS__startmatching(), XS__callout(), XS__startmodule(), boot_DynaLoader(), endmodule(), XS__startmetaregex(), dumpabrupt();
+XS__startmatching(), XS__callout(), XS__startmodule(), boot_DynaLoader(), endmodule()
+, XS__initthread1(), waitforthread(), preparethread(), XS__startmetaregex(), dumpabrupt(),
+endmoduleabrupt();
 
 static void
 xs_init(pTHX)
@@ -256,6 +260,10 @@ xs_init(pTHX)
 	newXS("callout", XS__callout, __FILE__);
 	//newXS("startmetaregex", XS__startmetaregex, __FILE__);
 	newXS("endmodule", endmodule, __FILE__);
+	newXS("endmoduleabrupt", endmoduleabrupt, __FILE__);
+	newXS("initthread", XS__initthread1, __FILE__);
+	//newXS("preparethread", preparethread, __FILE__);
+	newXS("waitforthread", waitforthread, __FILE__);
 	newXS("startmodule", XS__startmodule, __FILE__);
 }
 
@@ -283,16 +291,25 @@ secondmain(char* subject, size_t szsubject, char* pattern, size_t szpattern, cha
 	onig_search(preg, subject, subject + szsubject, subject, subject + szsubject, 0, 0);
 }
 #endif
-//#include <pthread.h>
+#include <pthread.h>
 #include <signal.h>
 //#include <unistd.h>
 
-U32 matchpos;
+__thread U32 matchpos, basepos;
+
+__thread int initial;
 
 void handler1(int sig) {
-	printf("signal %d @ %lu\n", sig, matchpos);
-	dumpabrupt();
-	exit(0);
+	printf("signal %d @ %u\n", sig, basepos + matchpos);
+	//dumpabrupt();
+	//exit(0);
+	/*if (!initial)
+		call_argv("decnthreads", G_DISCARD | G_NOARGS, NULL);
+	else {
+		call_argv("waitforthreads", G_DISCARD | G_NOARGS, NULL);
+	}*/
+	//pthread_exit(NULL);
+	siglongjmp(docalljmp, 1);
 }
 
 #ifdef _WIN32
@@ -328,6 +345,7 @@ VectoredHandler1(
 #endif
 int main(int argc, char** argv, char** env)
 {
+	initial = 1;
 	//onig_initialize((OnigEncoding[]){&OnigEncodingUTF8}, 1);
 #if 0
 	//argv[0] = "D:\\perl5\\perl.exe";
@@ -345,6 +363,7 @@ int main(int argc, char** argv, char** env)
 	//onig_initialize();
 	signal(SIGTERM, handler1);
 	signal(SIGABRT, handler1);
+	signal(SIGSEGV, handler1);
 #if _WIN32 && defined(NDEBUGSTATE)
 	_CrtSetReportHook(handler2);
 	AddVectoredExceptionHandler(1, VectoredHandler1);
@@ -364,8 +383,12 @@ int main(int argc, char** argv, char** env)
 	//fflush(foutput);
 	//fflush(foutput2);
 
-	endmodule(0);
-	exit(EXIT_SUCCESS);
+	//endmodule(0);
+	//kill(0, 1);
+	//exit(EXIT_SUCCESS);
+	//endmodule();
+	dumpmodule();
+	endmodule();
 	perl_destruct(my_perl);
 	perl_free(my_perl);
 	PERL_SYS_TERM();
@@ -400,7 +423,10 @@ void docall(const char *name, size_t szname, void *phashmap) {
 }
 #else
 #include <dlfcn.h>
-void docall(const char *name, size_t szname, void *phashmap) {
+#include <setjmp.h>
+__thread jmp_buf docalljmp;
+__thread bool binabrupt;
+U32 docall(const char *name, size_t szname, void *phashmap) {
 	char cProcName[USHRT_MAX];
 	sprintf(cProcName, "%.*s", (int)szname, name);
 	//if (!hCurrModule) hCurrModule = GetModuleHandle(0);
@@ -411,13 +437,18 @@ void docall(const char *name, size_t szname, void *phashmap) {
 
 	void *pfunc = dlsym(dlhndl, cProcName);
 
-	if (!pfunc) return;
-
 	extern void global_han();
 
 	global_han(cProcName, phashmap);
 
-	((void (*)(void* phashmap))pfunc)(phashmap);
+	if (!pfunc) return 0;
+
+	if (!__sigsetjmp(docalljmp, 1) && !binabrupt) {
+		//printf("@thread %p\n", &matchpos);
+		((void (*)(void* phashmap))pfunc)(phashmap);
+		return 0;
+	}
+	return 1;
 }
 
 #endif

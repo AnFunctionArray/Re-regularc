@@ -157,10 +157,12 @@
 )
 
 (?<declopt>(?{push2 \@flags, {"outter"=>undef,"opt"=>undef, "nonbitfl"=>undef}})(?&abstdeclorallqualifs)(?(?!\s*+;)(?&compoundstatement)|\s*+;(?{call 'endfulldecl'})\s*+))
+(?<decloptfast>(?{push2 \@flags, {"outter"=>undef,"opt"=>undef, "nonbitfl"=>undef}})(?&abstdeclorallqualifs)(?(?!\s*+;)(?{startpotfndef()})(?&quickblock)(?{call 'endfndef'})|\s*+;(?{call 'endfulldecl'})\s*+))
 
 (?<decl>(?{push2 \@flags, {"outter"=>undef,"nonopt"=>undef, "nonbitfl"=>undef}})(?&abstdeclorallqualifs)\s*+;(?{call 'endfulldecl'})\s*+)
 
 (?<cprogram>(?&declopt))
+(?<cprogramfast>(?&decloptfast))
 
 (?<typenamerev>(?(?=(?{push2 \@savedcallouts, []})
 		(?{++$recording; print3("recording typenamerev\n")})(?<typenamerev1>(?&typename)))

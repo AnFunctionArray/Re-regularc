@@ -18,6 +18,15 @@
 	(?<suffixflt>[flFL])?+(?{call 'collect_float_literal'})
 )
 
+(?<quickblock>\{
+	([^'"\{\}]|(?(?=(?{push2 \@savedcallouts, []})
+		(?{++$recording})((?&stringlit)))
+		(??{qr{\Q$^N\E}})
+		(?{pop2 \@savedcallouts})
+		(?{--$recording})|
+		(?{pop2 \@savedcallouts})
+		(?{--$recording})(*F))|(?&quickblock))*+\})
+
 (?<identifierpure>\b(?>[_a-zA-Z](?<letter>[_a-zA-Z0-9@])*+)\b)
 
 (?<identifierraw>((?&identifierpure))(??{checkident}))

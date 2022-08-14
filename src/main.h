@@ -119,10 +119,12 @@ struct retgetnamevalue getnamevalue(const char* nametoget);
 #define DLL_IMPORT INTRANSIT __declspec(dllimport)
 #define DLL_EXPORT INTRANSIT __declspec(dllexport)
 #define DLL_LOCAL  INTRANSIT
+#define THREAD_LOCAL thread_local
 #else
 #define DLL_IMPORT INTRANSIT [[gnu::visibility ("default")]]
 #define DLL_EXPORT INTRANSIT [[gnu::visibility ("default")]]
 #define DLL_LOCAL  INTRANSIT [[gnu::visibility ("hidden")]]
+#define THREAD_LOCAL thread_local
 #endif
 
 #define MAX_HASH_ENTRIES 0xFF
