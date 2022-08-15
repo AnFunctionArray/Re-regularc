@@ -249,7 +249,7 @@ struct retgetnamevalue getnamevalue(const char* nametoget) {
 
 XS__startmatching(), XS__callout(), XS__startmodule(), boot_DynaLoader(), endmodule()
 , XS__initthread1(), waitforthread(), preparethread(), XS__startmetaregex(), dumpabrupt(),
-endmoduleabrupt();
+endmoduleabrupt(), dumpmodule();
 
 static void
 xs_init(pTHX)
@@ -262,6 +262,7 @@ xs_init(pTHX)
 	newXS("endmodule", endmodule, __FILE__);
 	newXS("endmoduleabrupt", endmoduleabrupt, __FILE__);
 	newXS("initthread", XS__initthread1, __FILE__);
+	newXS("dumpmodule", dumpmodule, __FILE__);
 	//newXS("preparethread", preparethread, __FILE__);
 	newXS("waitforthread", waitforthread, __FILE__);
 	newXS("startmodule", XS__startmodule, __FILE__);
@@ -299,6 +300,8 @@ __thread U32 matchpos, basepos;
 
 __thread int initial;
 
+__thread int areweinuser;
+
 void handler1(int sig) {
 	printf("signal %d @ %u\n", sig, basepos + matchpos);
 	//dumpabrupt();
@@ -309,7 +312,13 @@ void handler1(int sig) {
 		call_argv("waitforthreads", G_DISCARD | G_NOARGS, NULL);
 	}*/
 	//pthread_exit(NULL);
-	siglongjmp(docalljmp, 1);
+	if(areweinuser)
+		siglongjmp(docalljmp, 1);
+	else {
+		printf("unhandled\n");
+		//exit(-1);
+		die("unhandled");
+	}
 }
 
 #ifdef _WIN32
@@ -387,7 +396,7 @@ int main(int argc, char** argv, char** env)
 	//kill(0, 1);
 	//exit(EXIT_SUCCESS);
 	//endmodule();
-	dumpmodule();
+	//dumpmodule();
 	endmodule();
 	perl_destruct(my_perl);
 	perl_free(my_perl);
@@ -442,12 +451,14 @@ U32 docall(const char *name, size_t szname, void *phashmap) {
 	global_han(cProcName, phashmap);
 
 	if (!pfunc) return 0;
-
+	areweinuser = 1;
 	if (!__sigsetjmp(docalljmp, 1) && !binabrupt) {
 		//printf("@thread %p\n", &matchpos);
 		((void (*)(void* phashmap))pfunc)(phashmap);
+		areweinuser = 0;
 		return 0;
 	}
+	areweinuser = 0;
 	return 1;
 }
 

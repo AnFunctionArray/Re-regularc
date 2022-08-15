@@ -5,7 +5,7 @@ use threads;
 use threads::shared;
 
 my @threads;
-my $nthreads :shared = 0;
+#my $nthreads :shared = 0;
 
 BEGIN{push @INC, "."};
 BEGIN{push @INC, "./misc"};
@@ -101,23 +101,36 @@ sub endfndef {
 
 sub startpotfndef {
     #print2 "nthr $nthreads\n"; 
-    do {
-        lock($nthreads);
-        goto end if($nthreads < $maxthreads);
-    } while(sleep(0));
- end:
-    lock($nthreads);
-    for my $i (0 .. $#threads) {
-        if($threads[$i] eq undef) {
-            @threads = splice @threads, $i;
-        }
-    }
-    ++$nthreads;
     #preparethread() if(defined &preparethread);
     my $slice = substr $subject, pos();
     print2 "pos is " . pos() . "\n";
-    push @threads, threads->create(\&execmain, $nthreads, $slice, scalar(pos()));
-    waitforthread() if(defined &waitforthread);
+    my $waitthread = threads->create(\&waitforthread) if(defined &waitforthread);
+    if($maxthreads > 0) {
+        while(1) {
+            sleep(0);
+            for my $i (0 .. $maxthreads - 1) {
+                if(eval { !$threads[$i]->is_running } or $@) {
+                    $threads[$i] = threads->create(\&execmain, 1, $slice, scalar(pos()));
+                    goto ends;
+                }
+            }
+        }
+    }
+    else {
+        for my $i (0 .. $#threads) {
+            if(eval { !$threads[$i]->is_running } or $@) {
+                $threads[$i] = threads->create(\&execmain, 1, $slice, scalar(pos()));
+                goto ends;
+            }
+        }
+
+        push @threads, threads->create(\&execmain, 1, $slice, scalar(pos()));
+    }
+ends:
+    #lock($nthreads);
+    #++$nthreads;
+    #waitforthread() if(defined &waitforthread);
+    $waitthread->join() if(defined &waitforthread);
 }
 
 #open my $fhnull, '>', "/dev/null" or die "error opening $filename: $!";
@@ -487,10 +500,10 @@ if(not $isnested)
     }
     my $flind = 1;
     sub execmain {
-        my $nthread = $_[0];
+        my $nthread = scalar($_[0]);
         my $subject = $_[1];
         my $currregex;
-        print2 "is sep: " . scalar($_[2]) . "\n";
+        print2 "is sep: " . $nthread . "\n";
         initthread(scalar($_[2])) if(defined &initthread and $nthread);
         #while(1) {
             if(!$nthread) {
@@ -501,7 +514,7 @@ if(not $isnested)
                 $currregex = $regexfinalthread;
             }
             eval {$subject =~ m{$currregex}sxx};
-            print2 "subject is $subject";
+            #print2 "subject is $subject";
 =begin
             if($@) {
                 warn $@;
@@ -517,28 +530,29 @@ if(not $isnested)
         #}
 
         if(!$nthread) {
-            print2 "full is $&";
+            #print2 "full is $&";
             waitforthreads();
         } else {
             if($@) {
                 endmoduleabrupt() if(defined &endmoduleabrupt);
             }
             else {
+                dumpmodule() if(defined &dumpmodule);
                 endmodule() if(defined &endmodule);
             }
-            decnthreads($nthread);
+            #decnthreads($nthread);
         }
     }
 
-    sub decnthreads {
-        lock($nthreads);
-        $threads[$_[0]] = undef;
-        $nthreads--;
-    }
+    #sub decnthreads {
+    #    lock($nthreads);
+    #    $nthreads--;
+    #}
 
     sub waitforthreads {
-        print2 "nthreads - $nthreads - $#threads\n";
-        $_->join for @threads;
+        print2 "joinning\n";
+        eval { $_->join } for @threads;
+        print2 "joined\n";
     }
 
     execmain(0, $subject);

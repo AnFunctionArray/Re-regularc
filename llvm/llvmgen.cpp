@@ -793,7 +793,8 @@ struct var : valbase {
 	llvm::Type* pllvmtype{};
 
 	auto requestType() {
-		return pllvmtype ? pllvmtype : pllvmtype = buildllvmtypefull(type);
+		return pllvmtype && &pllvmtype->getContext() == llvmctx.get() ? 
+			pllvmtype : pllvmtype = buildllvmtypefull(type);
 	}
 
 	std::list<::type> fixupTypeIfNeeded() {
@@ -809,7 +810,9 @@ struct var : valbase {
 		return type;
 	}
 	llvm::Value* requestValue() {
-		if (value == nullptr && linkage != "typedef")
+		if ((value == nullptr 
+			|| &value->getContext() != llvmctx.get())
+			&& linkage != "typedef")
 			addvar(*this);
 		return value;
 	}
@@ -1324,10 +1327,14 @@ struct basehndl /* : bindings_compiling*/ {
 		//If the signed type can represent all the bits of the unsigned convert to it
 		{
 			ops[0]->value = CreateCastInst(ops[0]->value, ops[1]->value->getType(), false);
+
+			*refspecops[0] = *refspecops[1];
 		}
 		//else convert to the unsigned one
 		else {
 			ops[1]->value = CreateCastInst(ops[1]->value, ops[0]->value->getType(), true);
+
+			*refspecops[1] = *refspecops[0];
 		}
 
 		return ops_in;
@@ -2552,7 +2559,7 @@ static bool comparefunctiontypeparameters(::type fntypeone, ::type fntypetwo) {
 	return iterparamsone == paramslistone.end() && iterparamstwo == paramslisttwo.end();
 }
 
-static //std::unordered_map<unsigned, bool> overloadflag;
+//static std::unordered_map<unsigned, bool> overloadflag;
 
 void addvar(var& lastvar, llvm::Constant* pInitializer) {
 
@@ -3887,9 +3894,9 @@ DLL_EXPORT void endqualifs(std::unordered_map<unsigned, std::string>&& hashes) {
 						}*/
 						//currtypevectorbeingbuild.pop_back();
 
-	if (lastvar.type.front().uniontype == type::FUNCTION) {
+	/*if (lastvar.type.front().uniontype == type::FUNCTION) {
 		lastvar.requestValue();
-	}
+	}*/
 }
 
 DLL_EXPORT void startfunctionparamdecl() {
@@ -4086,22 +4093,31 @@ static bool endwork = false;
 std::ofstream record{ getenv("RECORD") ? getenv("RECORD") : "", std::ios::binary };
 
 DLL_EXPORT void endmodule();
-
+#include <setjmp.h>
+extern "C" __thread jmp_buf docalljmp;
+extern "C" __thread int areweinuser;
 DLL_EXPORT void endmoduleabrupt() {
-	if (scopevar.front().size()) if (auto& fun = scopevar.front().back(); fun.type.front().uniontype == type::FUNCTION) {
-		if (fun.value) if (auto llvmfun = dyn_cast<llvm::Function>(fun.value);
-			!llvmfun->isDeclaration()) {
-			llvmfun->deleteBody();
+	areweinuser = 1;
+	if (!__sigsetjmp(docalljmp, 1)) {
+		if (scopevar.front().size()) if (auto& fun = scopevar.front().back(); fun.type.front().uniontype == type::FUNCTION) {
+			if (fun.value) if (auto llvmfun = dyn_cast<llvm::Function>(fun.value);
+				!llvmfun->isDeclaration()) {
+				llvmfun->deleteBody();
+			}
 		}
 	}
-
+	areweinuser = 0;
 	endmodule();
 }
 
 DLL_EXPORT void endmodule() {
-	llvmbuilder.release();
-	mainmodule.release();
-	llvmctx.release();
+	areweinuser = 1;
+	if (!__sigsetjmp(docalljmp, 1)) {
+		llvmbuilder.release();
+		mainmodule.release();
+		llvmctx.release();
+	}
+	areweinuser = 0;
 	return;
 
 	//endmoduleabrupt();
@@ -4116,19 +4132,22 @@ DLL_EXPORT void dumpmodule() {
 		//pthread_join(thread, nullptr);
 	}
 	if (scopevar.front().size()) if (auto& fun = scopevar.front().back(); fun.type.front().uniontype == type::FUNCTION) {
-		if (fun.value) if (auto llvmfun = dyn_cast<llvm::Function>(fun.value);
-			!llvmfun->isDeclaration()) {
-			//pthread_mutex_lock(&mutexshared);
-			std::cout << "Dumping " << mainmodule->getName().str() << " ..." << std::endl;
-			std::error_code code{};
-			llvm::raw_fd_ostream output{
-				std::string{mainmodule->getName().str()} + ".bc", code },
-				outputll{ std::string{mainmodule->getName().str()} + ".ll",
-							code };
-			if (!record.is_open()) {
-				llvm::WriteBitcodeToFile(*mainmodule, output);
-				mainmodule->print(outputll, nullptr);
+		if (fun.value) if (auto llvmfun = dyn_cast<llvm::Function>(fun.value); !llvmfun->isDeclaration()) {
+			areweinuser = 1;
+			if (!__sigsetjmp(docalljmp, 1)) {
+				//pthread_mutex_lock(&mutexshared);
+				std::cout << "Dumping " << llvmfun->getName().str() << " ..." << std::endl;
+				std::error_code code{};
+				llvm::raw_fd_ostream output{
+					std::string{llvmfun->getName().str()} + ".bc", code },
+					outputll{ std::string{llvmfun->getName().str()} + ".ll",
+								code };
+				if (!record.is_open()) {
+					llvm::WriteBitcodeToFile(*mainmodule, output);
+					mainmodule->print(outputll, nullptr);
+				}
 			}
+			areweinuser = 0;
 		}
 		//endwork = true;
 		//dyn_cast<llvm::Function>(currfunc->value)->deleteBody();
