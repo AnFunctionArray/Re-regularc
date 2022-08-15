@@ -4172,7 +4172,7 @@ DLL_EXPORT void initthread() {
 	structorunionmembers = *_structorunionmembers;
 	enums = *_enums;
 
-	condwake.notify_one();
+	//condwake.notify_one();
 }
 #include <setjmp.h>
 extern "C" __thread jmp_buf docalljmp;

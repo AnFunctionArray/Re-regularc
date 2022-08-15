@@ -5,6 +5,7 @@ use threads;
 use threads::shared;
 
 my @threads;
+my $donework :shared;
 #my $nthreads :shared = 0;
 
 BEGIN{push @INC, "."};
@@ -104,7 +105,7 @@ sub startpotfndef {
     #preparethread() if(defined &preparethread);
     my $slice = substr $subject, pos();
     print2 "pos is " . pos() . "\n";
-    my $waitthread = threads->create(\&waitforthread) if(defined &waitforthread);
+    #my $waitthread = threads->create(\&waitforthread) if(defined &waitforthread);
     if($maxthreads > 0) {
         while(1) {
             sleep(0);
@@ -119,6 +120,7 @@ sub startpotfndef {
     else {
         for my $i (0 .. $#threads) {
             if(eval { !$threads[$i]->is_running } or $@) {
+                $threads[$i]->join();
                 $threads[$i] = threads->create(\&execmain, 1, $slice, scalar(pos()));
                 goto ends;
             }
@@ -130,7 +132,10 @@ ends:
     #lock($nthreads);
     #++$nthreads;
     #waitforthread() if(defined &waitforthread);
-    $waitthread->join() if(defined &waitforthread);
+    #$waitthread->join() if(defined &waitforthread);
+    lock($donework); 
+    cond_wait($donework) until $donework == 1;
+    $donework = 0;
 }
 
 #open my $fhnull, '>', "/dev/null" or die "error opening $filename: $!";
@@ -505,6 +510,11 @@ if(not $isnested)
         my $currregex;
         print2 "is sep: " . $nthread . "\n";
         initthread(scalar($_[2])) if(defined &initthread and $nthread);
+        {
+            lock($donework);
+            $donework = 1;
+        }
+        cond_signal($donework);
         #while(1) {
             if(!$nthread) {
                 $regexfinal //= qr{(?(DEFINE)$mainregexdefs)^(*COMMIT)(?&cprogramfast)*+$}sxxo;
@@ -551,7 +561,7 @@ if(not $isnested)
 
     sub waitforthreads {
         print2 "joinning\n";
-        eval { $_->join } for @threads;
+         $_->join  for @threads;
         print2 "joined\n";
     }
 
